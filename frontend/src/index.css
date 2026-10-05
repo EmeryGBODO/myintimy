@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Palette Myintimy — valeurs en canaux RVB pour que Tailwind gère l'opacité (bg-fg/10, etc.) */
+:root {
+  --bg: 250 247 245; --surface: 242 234 236; --fg: 22 17 26; --muted: 117 104 122;
+  --accent: 91 42 78; --accent-fg: 250 247 245; --rose: 232 180 200; --soft: 246 230 238;
+  --plum: 42 20 38; --plum-2: 58 29 53; --plum-fg: 246 236 241; --plum-muted: 201 175 192;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: 13 11 13; --surface: 23 18 23; --fg: 244 238 240; --muted: 168 152 166;
+    --accent: 232 180 200; --accent-fg: 26 15 23; --soft: 36 22 31;
+    --plum: 28 13 26; --plum-2: 42 20 38; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: 13 11 13; --surface: 23 18 23; --fg: 244 238 240; --muted: 168 152 166;
+  --accent: 232 180 200; --accent-fg: 26 15 23; --soft: 36 22 31;
+  --plum: 28 13 26; --plum-2: 42 20 38; color-scheme: dark;
+}
+
+/* Univers Couple : on remappe les jetons sur la gamme prune, quel que soit le thème */
+.couple-scope {
+  --bg: var(--plum); --surface: var(--plum-2); --fg: var(--plum-fg); --muted: var(--plum-muted);
+  --accent: var(--rose); --accent-fg: 26 15 23;
+}
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  body {
+    @apply bg-bg text-fg font-sans font-light antialiased transition-colors duration-500 ease-lux;
+    line-height: 1.65;
+  }
+  h1, h2, h3 { @apply font-display font-light; text-wrap: balance; }
+  :focus-visible { outline: 1px solid rgb(var(--accent)); outline-offset: 3px; }
+  select option { background: rgb(var(--bg)); color: rgb(var(--fg)); }
+}
+
+@layer components {
+  .wrap { @apply mx-auto max-w-[1320px] px-4 sm:px-8 lg:px-12; }
+  .icon-btn { @apply grid h-[42px] w-[42px] place-items-center rounded-full transition-colors duration-300 hover:bg-surface; }
+  .eyebrow { @apply font-sans text-[11px] font-normal uppercase leading-snug tracking-[.28em] text-muted; }
+  .ital { @apply italic text-accent; }
+  .btn {
+    @apply inline-flex items-center justify-center gap-3 border border-fg bg-fg px-8 py-4 font-sans text-[11px] font-normal uppercase leading-none tracking-[.24em] text-bg transition-colors duration-300 ease-lux hover:border-accent hover:bg-accent hover:text-accent-fg;
+  }
+  .btn-ghost { @apply bg-transparent text-fg hover:border-fg hover:bg-fg hover:text-bg; }
+  .lnk {
+    @apply relative py-2 font-sans text-[11px] font-normal uppercase leading-none tracking-[.2em];
+  }
+  .lnk::after {
+    content: ""; @apply absolute inset-x-0 bottom-0.5 h-px origin-right scale-x-0 bg-current transition-transform duration-500 ease-lux;
+  }
+  .lnk:hover::after, .lnk.active::after { @apply origin-left scale-x-100; }
+  .chip {
+    @apply h-9 min-w-[38px] border border-line px-2.5 text-[12.5px] tracking-wide transition-colors duration-300 hover:border-line-strong;
+  }
+  .chip.on { @apply border-fg bg-fg text-bg; }
+  .swatch { @apply relative h-6 w-6 rounded-full border border-line-strong; }
+  .swatch.on::after { content: ""; @apply absolute -inset-[5px] rounded-full border border-fg; }
+  .select {
+    @apply appearance-none border border-line bg-transparent py-2 pl-3 pr-8 text-[12.5px] tracking-wide;
+    background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%);
+    background-position: calc(100% - 15px) 52%, calc(100% - 10px) 52%;
+    background-size: 5px 5px; background-repeat: no-repeat;
+  }
+  .field-label { @apply font-sans text-[10.5px] font-normal uppercase tracking-[.2em] text-muted; }
+  .field { @apply w-full rounded-none border-0 border-b border-line-strong bg-transparent px-0.5 py-2.5 text-[15px] outline-none focus:border-accent; }
+  .art > svg { width: 100%; height: 100%; display: block; }
+  .no-scrollbar { scrollbar-width: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
