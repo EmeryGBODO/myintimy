@@ -1,14 +1,7 @@
 import { Link, NavLink } from "react-router-dom";
-import { useShop } from "../context/ShopContext.jsx";
+import { useShop } from "../context/shop-context.js";
+import { NAV } from "../data/navigation.js";
 import { IconBag, IconHeart, IconMenu, IconMoon, IconSearch, IconSun } from "./Icons.jsx";
-
-export const NAV = [
-  { to: "/categorie/nouveautes", label: "Nouveautés" },
-  { to: "/categorie/lingerie", label: "Lingerie" },
-  { to: "/categorie/vetements", label: "Vêtements" },
-  { to: "/categorie/nuit", label: "Nuit & Détente" },
-  { to: "/categorie/couple", label: "Univers Couple", couple: true },
-];
 
 export function ThemeButton({ className = "" }) {
   const { isDark, toggleTheme } = useShop();

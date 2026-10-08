@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useShop } from "../context/ShopContext.jsx";
+import { useShop } from "../context/shop-context.js";
 
 const H = ({ children }) => <h4 className="mb-[18px] font-sans text-[10.5px] font-normal uppercase tracking-[.24em] text-muted">{children}</h4>;
 

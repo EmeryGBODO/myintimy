@@ -1,7 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { getProduct } from "../data/catalog.js";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { addCartItem, calculateSubtotal, changeCartItemQty, removeCartItem } from "../domain/cart.js";
+import { ShopContext } from "./shop-context.js";
 
-const ShopContext = createContext(null);
 
 // Stockage navigateur : simple confort, le site fonctionne sans.
 const storage = {
@@ -61,13 +61,12 @@ export function ShopProvider({ children }) {
   const confirmAge = () => { setAgeOk(true); storage.set("myi-18", true, "sessionStorage"); };
 
   const addToCart = (id, color, size, qty) => {
-    const key = `${id}|${color}|${size || ""}`;
-    setCart((c) => (c.some((i) => i.key === key) ? c.map((i) => (i.key === key ? { ...i, qty: i.qty + qty } : i)) : [...c, { key, id, color, size, qty }]));
+    setCart((c) => addCartItem(c, id, color, size, qty));
     setPanel("cart");
     toast("Ajouté à votre panier");
   };
-  const changeQty = (key, delta) => setCart((c) => c.map((i) => (i.key === key ? { ...i, qty: i.qty + delta } : i)).filter((i) => i.qty > 0));
-  const removeItem = (key) => setCart((c) => c.filter((i) => i.key !== key));
+  const changeQty = (key, delta) => setCart((c) => changeCartItemQty(c, key, delta));
+  const removeItem = (key) => setCart((c) => removeCartItem(c, key));
   const clearCart = () => setCart([]);
 
   const toggleFav = (id) => {
@@ -76,7 +75,7 @@ export function ShopProvider({ children }) {
     toast(has ? "Retiré de vos favoris" : "Ajouté à vos favoris");
   };
 
-  const subtotal = useMemo(() => cart.reduce((a, i) => a + (getProduct(i.id)?.price || 0) * i.qty, 0), [cart]);
+  const subtotal = useMemo(() => calculateSubtotal(cart), [cart]);
   const cartCount = cart.reduce((a, i) => a + i.qty, 0);
 
   const value = {
@@ -89,4 +88,3 @@ export function ShopProvider({ children }) {
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;
 }
 
-export const useShop = () => useContext(ShopContext);

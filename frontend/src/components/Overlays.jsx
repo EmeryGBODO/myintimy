@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useShop } from "../context/ShopContext.jsx";
+import { useShop } from "../context/shop-context.js";
 import { CATEGORIES, COLORS, FREE_SHIPPING, PRODUCTS, formatPrice, getProduct } from "../data/catalog.js";
 import ProductImage from "./ProductImage.jsx";
-import { NAV, ThemeButton } from "./Header.jsx";
+import { NAV } from "../data/navigation.js";
+import { ThemeButton } from "./Header.jsx";
 import { IconClose, IconMinus, IconPlus } from "./Icons.jsx";
 
 const CloseBtn = ({ onClick, label = "Fermer", className = "" }) => (

@@ -3,7 +3,7 @@ import { Route, Routes, useLocation, useParams } from "react-router-dom";
 import Header from "./components/Header.jsx";
 import Footer from "./components/Footer.jsx";
 import { CartDrawer, MobileMenu, SearchModal, SizeGuide, Toast } from "./components/Overlays.jsx";
-import { useShop } from "./context/ShopContext.jsx";
+import { useShop } from "./context/shop-context.js";
 import { CATEGORIES } from "./data/catalog.js";
 import Home from "./pages/Home.jsx";
 import Category from "./pages/Category.jsx";

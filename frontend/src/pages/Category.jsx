@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { CATEGORIES, COLORS, PRODUCTS, SIZES } from "../data/catalog.js";
 import { EmptyState, PageHead, Perks, ProductCard, ProductGrid } from "../components/Shared.jsx";
 import { AgeGate } from "../components/Overlays.jsx";
-import { useShop } from "../context/ShopContext.jsx";
+import { useShop } from "../context/shop-context.js";
 
 const PRICE = { all: () => true, lo: (p) => p < 25000, mid: (p) => p >= 25000 && p <= 50000, hi: (p) => p > 50000 };
 const SORT = { sel: null, asc: (a, b) => a.price - b.price, desc: (a, b) => b.price - a.price, new: (a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0) };

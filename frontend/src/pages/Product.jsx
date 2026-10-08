@@ -4,7 +4,7 @@ import ProductImage from "../components/ProductImage.jsx";
 import { Crumbs, FavButton, ProductCard, ProductGrid } from "../components/Shared.jsx";
 import { AgeGate, Qty } from "../components/Overlays.jsx";
 import { IconBox } from "../components/Icons.jsx";
-import { useShop } from "../context/ShopContext.jsx";
+import { useShop } from "../context/shop-context.js";
 import NotFound from "./NotFound.jsx";
 
 const optLabel = "mb-3 flex items-baseline justify-between font-sans text-[10.5px] font-normal uppercase tracking-[.2em]";

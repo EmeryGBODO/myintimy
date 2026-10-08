@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { useShop } from "../context/ShopContext.jsx";
+import { useShop } from "../context/shop-context.js";
 import { COLORS, formatPrice } from "../data/catalog.js";
 import ProductImage from "./ProductImage.jsx";
 import { IconBox, IconChat, IconHeart, IconLock, IconReturn } from "./Icons.jsx";

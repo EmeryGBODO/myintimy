@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { PRODUCTS } from "../data/catalog.js";
 import { EmptyState, PageHead, ProductCard, ProductGrid } from "../components/Shared.jsx";
-import { useShop } from "../context/ShopContext.jsx";
+import { useShop } from "../context/shop-context.js";
 
 export default function Favorites() {
   const { favs } = useShop();

@@ -1,26 +1,90 @@
-# Myintimy — boutique React + Tailwind
+# Myintimy
 
-## Démarrer
-```bash
-npm install
-npm run dev      # http://localhost:5173
-npm run build    # version de production dans dist/
+Boutique React/Tailwind en cours de transformation en application e-commerce complète. Le frontend existant reste fonctionnel avec son catalogue local pendant que le backend FastAPI est construit progressivement.
+
+## Structure
+
+```text
+.
+├── src/                    # Frontend React existant
+│   ├── api/                # Client HTTP centralisé
+│   ├── config/             # Configuration frontend
+│   ├── context/            # État boutique
+│   ├── data/               # Catalogue temporaire / fixtures
+│   ├── domain/             # Logique testable indépendante de React
+│   ├── components/
+│   └── pages/
+├── backend/                # API FastAPI
+├── docs/
+├── docker-compose.yml      # PostgreSQL local
+└── package.json
 ```
 
-## Organisation
-- `src/data/catalog.js` : produits, coloris, catégories, frais de livraison, format des prix (FCFA).
-- `src/data/art.js` : illustrations provisoires des produits (SVG).
-- `src/context/ShopContext.jsx` : panier, favoris, thème clair/sombre, vérification d'âge, panneaux.
-- `src/components/` : en-tête, pied de page, panier latéral, recherche, guide des tailles, porte 18+, cartes produit.
-- `src/pages/` : Accueil, Catégorie, Fiche produit, Favoris, Commande, Livraison.
-- `src/index.css` + `tailwind.config.js` : couleurs pilotées par variables CSS (modes clair et sombre).
+## Frontend
 
-## Mettre vos photos
+```bash
+npm install
+npm run dev
+```
+
+Contrôles :
+
+```bash
+npm run lint
+npm run test:run
+npm run build
+```
+
+Copiez `.env.example` vers `.env` pour personnaliser l'URL API.
+
+### Catalogue temporaire
+
+`src/data/catalog.js` contient encore les 26 produits utilisés par le frontend. Il est volontairement conservé comme fixture pendant la migration vers PostgreSQL.
+
+### Photos temporaires
+
 Placez les images dans `public/photos/` puis ajoutez à un produit :
-`images: ["/photos/seraphine-1.jpg", "/photos/seraphine-2.jpg", "/photos/seraphine-3.jpg"]`
-(1re = vue principale, 2e = image au survol, 3e = vue supplémentaire). L'illustration provisoire disparaît automatiquement.
 
-## À brancher avant la mise en ligne
-- Paiement réel (Mobile Money / carte) : la commande est actuellement simulée dans `src/pages/Checkout.jsx`.
-- Newsletter : le formulaire de l'accueil affiche seulement un message de confirmation.
-- Numéro WhatsApp et réseaux sociaux dans `src/components/Footer.jsx`.
+```js
+images: ["/photos/seraphine-1.jpg", "/photos/seraphine-2.jpg", "/photos/seraphine-3.jpg"]
+```
+
+La future administration remplacera ce fonctionnement par un vrai service média.
+
+## Backend
+
+Voir [`backend/README.md`](backend/README.md).
+
+Démarrage rapide de PostgreSQL :
+
+```bash
+docker compose up -d db
+```
+
+Puis :
+
+```bash
+cd backend
+python -m venv .venv
+# activez l'environnement virtuel
+pip install -e ".[dev]"
+cp .env.example .env
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+API locale : `http://localhost:8000`.
+
+Health checks :
+
+```text
+GET /health
+GET /api/v1/health
+GET /api/v1/health/database
+```
+
+## État actuel
+
+Phase 0 et Phase 1 : socle de stabilisation frontend et fondations backend. Aucune table métier e-commerce n'est encore créée. Les prochaines étapes concernent catalogue, catégories, variantes, images et stock.
+
+Le détail des décisions et contrôles se trouve dans [`docs/PHASE_0_1.md`](docs/PHASE_0_1.md).

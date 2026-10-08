@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { CITIES, COLORS, formatPrice, getProduct, shippingFee } from "../data/catalog.js";
 import ProductImage from "../components/ProductImage.jsx";
 import { PageHead } from "../components/Shared.jsx";
-import { useShop } from "../context/ShopContext.jsx";
+import { useShop } from "../context/shop-context.js";
 
 const PAYMENTS = [
   ["MTN Mobile Money", "Vous recevrez une demande de validation sur votre téléphone."],
