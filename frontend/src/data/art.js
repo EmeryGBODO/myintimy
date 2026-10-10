@@ -25,7 +25,8 @@ const SHAPES = {
 
 /** variant 0 = vue entière, 1 = détail zoomé, 2 = vue éloignée */
 export function artSvg(product, colorKey, variant = 0) {
-  const c = COLORS[colorKey] || COLORS[product.colors[0]];
+  const knownColor = product?.colors?.find((key) => COLORS[key]);
+  const c = COLORS[colorKey] || COLORS[knownColor] || COLORS.prune;
   const id = "a" + ++uid;
   const st = c.dark ? "rgba(255,255,255,.3)" : "rgba(50,15,40,.36)";
   const bg = variant === 2 ? [c.bg[1], c.bg[0]] : c.bg;
@@ -33,5 +34,5 @@ export function artSvg(product, colorKey, variant = 0) {
     `<path d="${d}" fill="${c.h}"/><path d="${d}" fill="url(#${id}s)"/>${lace ? `<path d="${d}" fill="url(#${id}l)"/>` : ""}<path d="${d}" fill="none" stroke="${st}" stroke-width=".8"/>`;
   const tr = variant === 1 ? "translate(150 190) scale(1.5) translate(-150 -190)" : variant === 2 ? "translate(150 210) scale(.86) translate(-150 -210)" : "";
   const ring = c.dark ? "rgba(60,20,50,.10)" : "rgba(255,255,255,.08)";
-  return `<svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${product.name}, ${c.n}"><defs><linearGradient id="${id}g" x1="0" y1="0" x2="${variant ? 1 : 0.2}" y2="1"><stop offset="0" stop-color="${bg[0]}"/><stop offset="1" stop-color="${bg[1]}"/></linearGradient><radialGradient id="${id}s" cx=".32" cy=".28" r=".85"><stop offset="0" stop-color="#fff" stop-opacity=".24"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/></radialGradient><pattern id="${id}l" width="16" height="16" patternUnits="userSpaceOnUse"><path d="M0 8 Q4 2 8 8 T16 8" fill="none" stroke="${st}" stroke-width=".7"/><circle cx="8" cy="12.5" r="1.7" fill="none" stroke="${st}" stroke-width=".6"/><circle cx="0" cy="3" r=".9" fill="${st}"/><circle cx="16" cy="3" r=".9" fill="${st}"/></pattern></defs><rect width="300" height="400" fill="url(#${id}g)"/><circle cx="${variant === 2 ? 60 : 150}" cy="${variant === 2 ? 330 : 200}" r="${variant === 2 ? 190 : 132}" fill="none" stroke="${ring}"/><circle cx="150" cy="200" r="164" fill="none" stroke="${ring}"/><g transform="${tr}">${SHAPES[product.type](g, c.h, st)}</g></svg>`;
+  return `<svg viewBox="0 0 300 400" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${product.name}, ${c.n}"><defs><linearGradient id="${id}g" x1="0" y1="0" x2="${variant ? 1 : 0.2}" y2="1"><stop offset="0" stop-color="${bg[0]}"/><stop offset="1" stop-color="${bg[1]}"/></linearGradient><radialGradient id="${id}s" cx=".32" cy=".28" r=".85"><stop offset="0" stop-color="#fff" stop-opacity=".24"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/></radialGradient><pattern id="${id}l" width="16" height="16" patternUnits="userSpaceOnUse"><path d="M0 8 Q4 2 8 8 T16 8" fill="none" stroke="${st}" stroke-width=".7"/><circle cx="8" cy="12.5" r="1.7" fill="none" stroke="${st}" stroke-width=".6"/><circle cx="0" cy="3" r=".9" fill="${st}"/><circle cx="16" cy="3" r=".9" fill="${st}"/></pattern></defs><rect width="300" height="400" fill="url(#${id}g)"/><circle cx="${variant === 2 ? 60 : 150}" cy="${variant === 2 ? 330 : 200}" r="${variant === 2 ? 190 : 132}" fill="none" stroke="${ring}"/><circle cx="150" cy="200" r="164" fill="none" stroke="${ring}"/><g transform="${tr}">${(SHAPES[product.type] || SHAPES.box)(g, c.h, st)}</g></svg>`;
 }

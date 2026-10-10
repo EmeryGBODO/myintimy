@@ -9,3 +9,5 @@ __pycache__/
 backend/.venv/
 backend/.coverage
 .DS_Store
+.vite/
+coverage/

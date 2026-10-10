@@ -3,8 +3,8 @@ import { Route, Routes, useLocation, useParams } from "react-router-dom";
 import Header from "./components/Header.jsx";
 import Footer from "./components/Footer.jsx";
 import { CartDrawer, MobileMenu, SearchModal, SizeGuide, Toast } from "./components/Overlays.jsx";
-import { useShop } from "./context/shop-context.js";
-import { CATEGORIES } from "./data/catalog.js";
+import { useCatalog } from "./catalog/catalog-context.js";
+import { useShop } from "./context/shop-context";
 import Home from "./pages/Home.jsx";
 import Category from "./pages/Category.jsx";
 import Product from "./pages/Product.jsx";
@@ -12,11 +12,13 @@ import Favorites from "./pages/Favorites.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import Delivery from "./pages/Delivery.jsx";
 import NotFound from "./pages/NotFound.jsx";
+import AdminRoutes from "./admin/AdminRoutes.jsx";
 
 /* `key` remet la page à zéro (filtres, taille choisie…) quand on change de catégorie ou de produit */
 function CategoryRoute() {
   const { cat } = useParams();
-  return CATEGORIES[cat] ? <Category key={cat} cat={cat} /> : <NotFound />;
+  const { hasCategory } = useCatalog();
+  return hasCategory(cat) ? <Category key={cat} cat={cat} /> : <NotFound />;
 }
 function ProductRoute() {
   const { id } = useParams();
@@ -33,6 +35,7 @@ function RouteEffects() {
 
 export default function App() {
   const { pathname } = useLocation();
+  if (pathname.startsWith("/admin")) return <AdminRoutes />;
   return (
     <>
       <RouteEffects />

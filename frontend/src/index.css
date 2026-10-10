@@ -7,19 +7,28 @@
   --bg: 250 247 245; --surface: 242 234 236; --fg: 22 17 26; --muted: 117 104 122;
   --accent: 91 42 78; --accent-fg: 250 247 245; --rose: 232 180 200; --soft: 246 230 238;
   --plum: 42 20 38; --plum-2: 58 29 53; --plum-fg: 246 236 241; --plum-muted: 201 175 192;
+  --success: 51 122 84; --success-soft: 232 244 237;
+  --warning: 155 107 35; --warning-soft: 249 241 223;
+  --danger: 166 55 61; --danger-soft: 250 235 236;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: 13 11 13; --surface: 23 18 23; --fg: 244 238 240; --muted: 168 152 166;
     --accent: 232 180 200; --accent-fg: 26 15 23; --soft: 36 22 31;
-    --plum: 28 13 26; --plum-2: 42 20 38; color-scheme: dark;
+    --plum: 28 13 26; --plum-2: 42 20 38;
+    --success: 143 215 174; --success-soft: 20 45 31;
+    --warning: 237 196 118; --warning-soft: 53 41 22;
+    --danger: 242 147 151; --danger-soft: 51 24 27; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: 13 11 13; --surface: 23 18 23; --fg: 244 238 240; --muted: 168 152 166;
   --accent: 232 180 200; --accent-fg: 26 15 23; --soft: 36 22 31;
-  --plum: 28 13 26; --plum-2: 42 20 38; color-scheme: dark;
+  --plum: 28 13 26; --plum-2: 42 20 38;
+  --success: 143 215 174; --success-soft: 20 45 31;
+  --warning: 237 196 118; --warning-soft: 53 41 22;
+  --danger: 242 147 151; --danger-soft: 51 24 27; color-scheme: dark;
 }
 
 /* Univers Couple : on remappe les jetons sur la gamme prune, quel que soit le thème */
@@ -29,14 +38,20 @@
 }
 
 @layer base {
-  html { scroll-behavior: smooth; }
+  html {
+    scroll-behavior: smooth;
+    background: rgb(var(--bg));
+  }
+  html, body, #root { min-height: 100%; }
   body {
+    min-height: 100dvh;
     @apply bg-bg text-fg font-sans font-light antialiased transition-colors duration-500 ease-lux;
     line-height: 1.65;
   }
   h1, h2, h3 { @apply font-display font-light; text-wrap: balance; }
   :focus-visible { outline: 1px solid rgb(var(--accent)); outline-offset: 3px; }
   select option { background: rgb(var(--bg)); color: rgb(var(--fg)); }
+  input[type="checkbox"] { accent-color: rgb(var(--accent)); }
 }
 
 @layer components {

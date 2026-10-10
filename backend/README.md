@@ -1,6 +1,6 @@
 # Myintimy API
 
-Socle backend FastAPI de Myintimy. La phase 1 fournit la configuration, PostgreSQL/SQLAlchemy, Alembic, CORS, logs HTTP, format d'erreur uniforme et health checks. Les modèles métier seront ajoutés à partir de la phase catalogue.
+API FastAPI de Myintimy avec PostgreSQL/SQLAlchemy/Alembic. Le domaine catalogue est maintenant présent : catégories, produits, couleurs, tailles, variantes, images et historique de stock.
 
 ## Démarrage local
 
@@ -8,15 +8,16 @@ Socle backend FastAPI de Myintimy. La phase 1 fournit la configuration, PostgreS
 cd backend
 python -m venv .venv
 # Linux/macOS : source .venv/bin/activate
-# Windows : .venv\\Scripts\\activate
+# Windows : .venv\Scripts\activate
 pip install -e ".[dev]"
 cp .env.example .env
-uvicorn app.main:app --reload
 ```
 
-Sous Windows PowerShell, utilisez `Copy-Item .env.example .env` au lieu de `cp`.
+Sous Windows PowerShell :
 
-## Base de données
+```powershell
+Copy-Item .env.example .env
+```
 
 Depuis la racine du projet :
 
@@ -24,20 +25,42 @@ Depuis la racine du projet :
 docker compose up -d db
 ```
 
-Puis depuis `backend/` :
+Puis dans `backend/` :
 
 ```bash
 alembic upgrade head
+python -m app.scripts.seed_catalog
+pytest
+uvicorn app.main:app --reload
 ```
 
-## Tests
+## API
+
+Health checks :
+
+```text
+GET /health
+GET /api/v1/health
+GET /api/v1/health/database
+```
+
+Catalogue :
+
+```text
+GET /api/v1/categories
+GET /api/v1/categories/{slug}
+GET /api/v1/colors
+GET /api/v1/sizes
+GET /api/v1/products
+GET /api/v1/products/{identifier}
+GET /api/v1/products/{identifier}/related
+```
+
+## Qualité
 
 ```bash
 pytest
+alembic check
 ```
 
-## Health checks
-
-- `GET /health` : disponibilité du processus API.
-- `GET /api/v1/health` : disponibilité de l'API versionnée.
-- `GET /api/v1/health/database` : vérifie la connexion à la base.
+Le service de stock existe côté métier mais n'est pas encore exposé en mutation publique : les futures routes d'administration l'utiliseront afin de conserver la traçabilité des mouvements.

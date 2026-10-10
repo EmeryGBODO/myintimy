@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
-import { CATEGORIES, COLORS, PRODUCTS, SIZES } from "../data/catalog.js";
+import { useCatalog } from "../catalog/catalog-context.js";
+import { sizeMatchesFilter } from "../catalog/catalog-utils.js";
+import { COLORS, SIZES } from "../data/catalog.js";
 import { EmptyState, PageHead, Perks, ProductCard, ProductGrid } from "../components/Shared.jsx";
 import { AgeGate } from "../components/Overlays.jsx";
 import { useShop } from "../context/shop-context.js";
@@ -9,9 +11,10 @@ const SORT = { sel: null, asc: (a, b) => a.price - b.price, desc: (a, b) => b.pr
 
 export default function Category({ cat }) {
   const { ageOk } = useShop();
-  const meta = CATEGORIES[cat];
+  const { products, categories } = useCatalog();
+  const meta = categories[cat];
   const isCouple = cat === "couple";
-  const base = useMemo(() => (cat === "nouveautes" ? PRODUCTS.filter((p) => p.isNew) : PRODUCTS.filter((p) => p.category === cat)), [cat]);
+  const base = useMemo(() => (cat === "nouveautes" ? products.filter((p) => p.isNew) : products.filter((p) => p.category === cat)), [cat, products]);
   const colors = [...new Set(base.flatMap((p) => p.colors))];
 
   const [size, setSize] = useState(null);
@@ -21,7 +24,7 @@ export default function Category({ cat }) {
 
   const list = useMemo(() => {
     const l = base.filter((p) =>
-      (!size || p.sizes?.some((s) => s === size || s.includes(size))) && (!color || p.colors.includes(color)) && PRICE[price](p.price));
+      (!size || p.sizes?.some((s) => sizeMatchesFilter(s, size))) && (!color || p.colors.includes(color)) && PRICE[price](p.price));
     return SORT[sort] ? [...l].sort(SORT[sort]) : l;
   }, [base, size, color, price, sort]);
 
@@ -39,7 +42,7 @@ export default function Category({ cat }) {
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2"><span className={label}>Couleur</span>
-            {colors.map((k) => <button key={k} className={`swatch ${color === k ? "on" : ""}`} style={{ background: COLORS[k].h }} title={COLORS[k].n} aria-label={COLORS[k].n} aria-pressed={color === k} onClick={() => setColor(color === k ? null : k)} />)}
+            {colors.map((k) => <button key={k} className={`swatch ${color === k ? "on" : ""}`} style={{ background: COLORS[k]?.h || "#ddd" }} title={COLORS[k]?.n || k} aria-label={COLORS[k]?.n || k} aria-pressed={color === k} onClick={() => setColor(color === k ? null : k)} />)}
           </div>
           <div className="flex flex-wrap gap-2">
             <select aria-label="Prix" className="select" value={price} onChange={(e) => setPrice(e.target.value)}>

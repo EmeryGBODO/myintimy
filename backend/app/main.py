@@ -1,5 +1,8 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
@@ -12,7 +15,7 @@ configure_logging()
 app = FastAPI(
     title=settings.app_name,
     debug=settings.debug,
-    version="0.1.0",
+    version="0.3.0",
 )
 
 app.add_middleware(
@@ -25,6 +28,10 @@ app.add_middleware(
 register_exception_handlers(app)
 register_request_logging(app)
 app.include_router(api_router, prefix=settings.api_v1_prefix)
+
+media_root = Path(settings.media_root)
+media_root.mkdir(parents=True, exist_ok=True)
+app.mount("/media", StaticFiles(directory=media_root), name="media")
 
 
 @app.get("/health", tags=["health"])

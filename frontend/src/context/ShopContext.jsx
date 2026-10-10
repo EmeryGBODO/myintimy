@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCatalog } from "../catalog/catalog-context.js";
 import { addCartItem, calculateSubtotal, changeCartItemQty, removeCartItem } from "../domain/cart.js";
 import { ShopContext } from "./shop-context.js";
 
@@ -13,9 +14,10 @@ const storage = {
   },
 };
 
-const systemDark = () => window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+const systemDark = () => Boolean(window.matchMedia?.("(prefers-color-scheme: dark)").matches);
 
 export function ShopProvider({ children }) {
+  const { getProduct } = useCatalog();
   /* Thème : null = suit le système */
   const [theme, setTheme] = useState(() => storage.get("myi-theme", null));
   const [sysDark, setSysDark] = useState(systemDark);
@@ -27,6 +29,7 @@ export function ShopProvider({ children }) {
   }, []);
   useEffect(() => {
     if (theme) document.documentElement.dataset.theme = theme;
+    else delete document.documentElement.dataset.theme;
     storage.set("myi-theme", theme);
   }, [theme]);
   const isDark = theme ? theme === "dark" : sysDark;
@@ -44,12 +47,16 @@ export function ShopProvider({ children }) {
     document.body.style.overflow = panel ? "hidden" : "";
     const onKey = (e) => e.key === "Escape" && setPanel(null);
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
   }, [panel]);
 
   /* Toast */
   const [toastMsg, setToastMsg] = useState("");
   const timer = useRef();
+  useEffect(() => () => clearTimeout(timer.current), []);
   const toast = useCallback((m) => {
     setToastMsg(m);
     clearTimeout(timer.current);
@@ -75,7 +82,7 @@ export function ShopProvider({ children }) {
     toast(has ? "Retiré de vos favoris" : "Ajouté à vos favoris");
   };
 
-  const subtotal = useMemo(() => calculateSubtotal(cart), [cart]);
+  const subtotal = useMemo(() => calculateSubtotal(cart, getProduct), [cart, getProduct]);
   const cartCount = cart.reduce((a, i) => a + i.qty, 0);
 
   const value = {

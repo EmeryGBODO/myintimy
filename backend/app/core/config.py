@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://myintimy:myintimy@localhost:5432/myintimy"
     frontend_origins: str = Field(default="http://localhost:5173")
     log_level: str = "INFO"
+    jwt_secret: str = "development-only-change-me-before-production"
+    admin_access_token_minutes: int = 480
+    media_root: str = "media"
+    max_product_image_bytes: int = 5 * 1024 * 1024
 
     @property
     def cors_origins(self) -> list[str]:

@@ -1,0 +1,203 @@
+# =========================================================
+# Myintimy - .gitignore
+# React / Vite frontend + FastAPI backend
+# =========================================================
+
+
+# ---------------------------------------------------------
+# Environment variables / secrets
+# ---------------------------------------------------------
+.env
+.env.*
+!.env.example
+
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+
+# ---------------------------------------------------------
+# Node.js / React / Vite
+# ---------------------------------------------------------
+node_modules/
+frontend/node_modules/
+
+dist/
+frontend/dist/
+
+.vite/
+frontend/.vite/
+
+coverage/
+frontend/coverage/
+
+*.tsbuildinfo
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+
+# ---------------------------------------------------------
+# Python / FastAPI
+# ---------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+
+*.so
+
+.Python
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+
+# ---------------------------------------------------------
+# Python virtual environments
+# ---------------------------------------------------------
+.venv/
+venv/
+env/
+ENV/
+
+backend/.venv/
+backend/venv/
+
+
+# ---------------------------------------------------------
+# Python test / quality caches
+# ---------------------------------------------------------
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.hypothesis/
+.tox/
+.nox/
+
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+
+# ---------------------------------------------------------
+# Local databases
+# PostgreSQL data itself should remain outside Git.
+# SQLite files may be used locally for tests/dev.
+# ---------------------------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+
+postgres-data/
+pgdata/
+
+
+# ---------------------------------------------------------
+# Runtime files / uploads
+# ---------------------------------------------------------
+uploads/
+media/
+storage/
+
+backend/uploads/
+backend/media/
+backend/storage/
+
+
+# ---------------------------------------------------------
+# Logs
+# ---------------------------------------------------------
+*.log
+logs/
+backend/logs/
+
+
+# ---------------------------------------------------------
+# Temporary / cache files
+# ---------------------------------------------------------
+tmp/
+temp/
+.cache/
+*.tmp
+*.temp
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+
+# ---------------------------------------------------------
+# IDE / editors
+# ---------------------------------------------------------
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+
+# ---------------------------------------------------------
+# OS / miscellaneous
+# ---------------------------------------------------------
+.AppleDouble
+.LSOverride
+Icon?
+
+._*
+
+.Trashes
+.Spotlight-V100
+.fseventsd
+
+
+# ---------------------------------------------------------
+# Docker local overrides
+# ---------------------------------------------------------
+docker-compose.override.yml
+
+
+# ---------------------------------------------------------
+# Archives / generated exports
+# ---------------------------------------------------------
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+
+# ---------------------------------------------------------
+# IMPORTANT - intentionally NOT ignored
+# ---------------------------------------------------------
+# package-lock.json
+# backend/alembic.ini
+# backend/migrations/
+# docker-compose.yml
+# *.env.example

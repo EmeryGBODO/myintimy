@@ -4,6 +4,9 @@ sqlalchemy<3.0,>=2.0
 alembic<2.0,>=1.14
 pydantic-settings<3.0,>=2.6
 psycopg[binary]<4.0,>=3.2
+PyJWT<3.0,>=2.9
+argon2-cffi<26.0,>=23.1
+python-multipart<1.0,>=0.0.12
 
 [dev]
 pytest<10.0,>=8.3

@@ -3,5 +3,11 @@ import { createContext, useContext } from "react";
 export const ShopContext = createContext(null);
 
 export function useShop() {
-  return useContext(ShopContext);
+  const value = useContext(ShopContext);
+
+  if (value === null) {
+    throw new Error("useShop doit être utilisé sous <ShopProvider>.");
+  }
+
+  return value;
 }
