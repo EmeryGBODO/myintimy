@@ -6,6 +6,8 @@ import AdminCategories from "../pages/admin/AdminCategories.jsx";
 import AdminDashboard from "../pages/admin/AdminDashboard.jsx";
 import AdminInventory from "../pages/admin/AdminInventory.jsx";
 import AdminLogin from "../pages/admin/AdminLogin.jsx";
+import AdminOrders from "../pages/admin/AdminOrders.jsx";
+import AdminOrderDetail from "../pages/admin/AdminOrderDetail.jsx";
 import AdminProductForm from "../pages/admin/AdminProductForm.jsx";
 import AdminProducts from "../pages/admin/AdminProducts.jsx";
 import AdminReferences from "../pages/admin/AdminReferences.jsx";
@@ -33,6 +35,8 @@ function RoutesTree() {
       <Route path="/admin/login" element={authenticated ? <Navigate to="/admin" replace /> : <AdminLogin />} />
       <Route element={<ProtectedAdmin />}>
         <Route path="/admin" element={<AdminDashboard />} />
+        <Route path="/admin/orders" element={<AdminOrders />} />
+        <Route path="/admin/orders/:id" element={<AdminOrderDetail />} />
         <Route path="/admin/products" element={<AdminProducts />} />
         <Route path="/admin/products/new" element={<AdminProductForm />} />
         <Route path="/admin/products/:id" element={<AdminProductForm />} />

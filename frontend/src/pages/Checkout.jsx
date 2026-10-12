@@ -1,15 +1,15 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { CITIES, COLORS, formatPrice, getProduct, shippingFee } from "../data/catalog.js";
+import { CITIES, formatPrice, shippingFee } from "../data/catalog.js";
 import ProductImage from "../components/ProductImage.jsx";
 import { PageHead } from "../components/Shared.jsx";
+import { useCatalog } from "../catalog/catalog-context.js";
+import { getCartItemUnitPrice } from "../domain/cart.js";
+import { ordersApi } from "../api/orders.js";
 import { useShop } from "../context/shop-context.js";
 
 const PAYMENTS = [
-  ["MTN Mobile Money", "Vous recevrez une demande de validation sur votre téléphone."],
-  ["Moov Money", "Validation par code sur votre téléphone."],
-  ["Carte bancaire", "Visa, Mastercard. Paiement sur page sécurisée."],
-  ["Paiement à la livraison", "En espèces ou Mobile Money, à réception du colis."],
+  ["cash_on_delivery", "Paiement à la livraison", "Le règlement est effectué à la réception du colis."],
 ];
 
 function Field({ id, label, ...props }) {
@@ -23,21 +23,60 @@ function Field({ id, label, ...props }) {
 
 const Legend = ({ children }) => <legend className="mb-2.5 p-0 font-display text-[28px] font-light">{children}</legend>;
 
+function cartVariant(product, item) {
+  return (product?.variants || []).find((variant) => {
+    const color = variant.color?.slug || variant.color_slug;
+    const size = variant.size?.code || variant.size_code || null;
+    return color === item.color && size === (item.size || null);
+  });
+}
+
+function colorLabel(product, slug) {
+  return product?.colorDetails?.find((color) => color.slug === slug)?.name || slug;
+}
+
 export default function Checkout() {
   const { cart, subtotal, clearCart } = useShop();
-  const [f, setF] = useState({ name: "", phone: "", email: "", city: "Cotonou", area: "", address: "", neutral: true, pay: PAYMENTS[0][0] });
+  const { getProduct, source } = useCatalog();
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    city: "Cotonou",
+    area: "",
+    address: "",
+    neutral: true,
+    pay: "cash_on_delivery",
+  });
   const [error, setError] = useState("");
   const [order, setOrder] = useState(null);
-  const set = (k) => (e) => setF({ ...f, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
+  const [submitting, setSubmitting] = useState(false);
+
+  const set = (key) => (event) => setForm((current) => ({
+    ...current,
+    [key]: event.target.type === "checkbox" ? event.target.checked : event.target.value,
+  }));
+
+  const rows = useMemo(() => cart.map((item) => {
+    const product = getProduct(item.id);
+    return {
+      item,
+      product,
+      variant: cartVariant(product, item),
+      unitPrice: getCartItemUnitPrice(product, item),
+    };
+  }), [cart, getProduct]);
 
   if (order) {
     return (
       <section className="wrap grid justify-items-center gap-5 py-20 text-center lg:py-36">
         <p className="eyebrow">Commande enregistrée</p>
-        <h1 className="text-[clamp(40px,6vw,76px)]">Merci, <span className="ital">{order.first}</span></h1>
-        <p className="border border-line-strong px-[18px] py-3 font-sans text-xs font-normal uppercase tracking-[.24em]">{order.ref}</p>
-        <p className="max-w-[52ch] text-muted">Votre commande sera préparée avec soin et expédiée sous emballage neutre. Mode de paiement choisi : {order.pay}. Une conseillère vous contactera par téléphone pour confirmer la livraison.</p>
-        <p className="text-[13px] text-muted">Boutique de démonstration : aucun paiement n’a été effectué.</p>
+        <h1 className="text-[clamp(40px,6vw,76px)]">Merci, <span className="ital">{order.customer_name.split(" ")[0]}</span></h1>
+        <p className="border border-line-strong px-[18px] py-3 font-sans text-xs font-normal uppercase tracking-[.24em]">{order.reference}</p>
+        <p className="max-w-[52ch] text-muted">
+          Votre commande est confirmée et le stock correspondant a été réservé. Le règlement sera effectué à la livraison.
+        </p>
+        <p className="text-sm text-muted">Total confirmé : {formatPrice(order.total_xof)}</p>
         <Link to="/" className="btn btn-ghost">Retour à l’accueil</Link>
       </section>
     );
@@ -53,17 +92,53 @@ export default function Checkout() {
     );
   }
 
-  const fee = shippingFee(f.city, subtotal);
+  const fee = shippingFee(form.city, subtotal);
   const total = subtotal + fee;
-  const submit = (e) => {
-    e.preventDefault();
-    if (!f.name.trim() || !f.phone.trim() || !f.area.trim() || !f.address.trim()) {
-      return setError("Merci de compléter votre nom, téléphone, quartier et adresse.");
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+
+    if (!form.name.trim() || !form.phone.trim() || !form.area.trim() || !form.address.trim()) {
+      setError("Merci de compléter votre nom, téléphone, quartier et adresse.");
+      return;
     }
-    setOrder({ ref: "MYI-" + Math.random().toString(36).slice(2, 8).toUpperCase(), first: f.name.trim().split(" ")[0], pay: f.pay });
-    clearCart();
-    window.scrollTo(0, 0);
-  };
+    if (source !== "api") {
+      setError("Le service de commande est momentanément indisponible. Réessayez lorsque la boutique est reconnectée.");
+      return;
+    }
+    const unavailable = rows.find((row) => !row.product || !row.variant?.id);
+    if (unavailable) {
+      setError("Un article du panier n'est plus disponible. Retirez-le ou rechargez la boutique avant de continuer.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const created = await ordersApi.create({
+        customer_name: form.name.trim(),
+        customer_phone: form.phone.trim(),
+        customer_email: form.email.trim() || null,
+        city: form.city,
+        area: form.area.trim(),
+        address: form.address.trim(),
+        neutral_packaging: form.neutral,
+        payment_method: form.pay,
+        items: rows.map(({ item, variant }) => ({ variant_id: variant.id, quantity: item.qty })),
+      });
+      setOrder(created);
+      clearCart();
+      window.scrollTo(0, 0);
+    } catch (err) {
+      if (err?.code === "INSUFFICIENT_STOCK" || err?.code === "VARIANT_UNAVAILABLE") {
+        setError("Le stock a changé depuis l'ajout au panier. Rechargez la page et vérifiez les quantités disponibles.");
+      } else {
+        setError(err?.message || "Impossible d'enregistrer la commande pour le moment.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   return (
     <>
@@ -73,10 +148,10 @@ export default function Checkout() {
           <fieldset className="m-0 grid gap-4 border-0 p-0">
             <Legend>Vos coordonnées</Legend>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field id="name" label="Prénom et nom" autoComplete="name" value={f.name} onChange={set("name")} />
-              <Field id="phone" label="Téléphone" type="tel" placeholder="+229" autoComplete="tel" value={f.phone} onChange={set("phone")} />
+              <Field id="name" label="Prénom et nom" autoComplete="name" value={form.name} onChange={set("name")} />
+              <Field id="phone" label="Téléphone" type="tel" placeholder="+229" autoComplete="tel" value={form.phone} onChange={set("phone")} />
             </div>
-            <Field id="email" label="E-mail (facultatif)" type="email" autoComplete="email" value={f.email} onChange={set("email")} />
+            <Field id="email" label="E-mail (facultatif)" type="email" autoComplete="email" value={form.email} onChange={set("email")} />
           </fieldset>
 
           <fieldset className="m-0 grid gap-4 border-0 p-0">
@@ -84,46 +159,50 @@ export default function Checkout() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid min-w-0 gap-1.5">
                 <label htmlFor="city" className="field-label">Ville</label>
-                <select id="city" className="field" value={f.city} onChange={set("city")}>{CITIES.map((c) => <option key={c}>{c}</option>)}</select>
+                <select id="city" className="field" value={form.city} onChange={set("city")}>{CITIES.map((city) => <option key={city}>{city}</option>)}</select>
               </div>
-              <Field id="area" label="Quartier" value={f.area} onChange={set("area")} />
+              <Field id="area" label="Quartier" value={form.area} onChange={set("area")} />
             </div>
-            <Field id="address" label="Adresse ou point de repère" value={f.address} onChange={set("address")} />
+            <Field id="address" label="Adresse ou point de repère" value={form.address} onChange={set("address")} />
             <label className="flex items-start gap-3 text-sm">
-              <input type="checkbox" checked={f.neutral} onChange={set("neutral")} className="mt-1 accent-accent" />
+              <input type="checkbox" checked={form.neutral} onChange={set("neutral")} className="mt-1 accent-accent" />
               <span>Emballage neutre, sans logo ni description du contenu</span>
             </label>
           </fieldset>
 
           <fieldset className="m-0 grid gap-2.5 border-0 p-0">
             <Legend>Paiement</Legend>
-            {PAYMENTS.map(([name, hint]) => (
-              <label key={name} className={`flex cursor-pointer items-center gap-3.5 border px-[18px] py-4 transition-colors ${f.pay === name ? "border-fg" : "border-line"}`}>
-                <input type="radio" name="pay" value={name} checked={f.pay === name} onChange={set("pay")} className="accent-accent" />
+            {PAYMENTS.map(([value, name, hint]) => (
+              <label key={value} className={`flex cursor-pointer items-center gap-3.5 border px-[18px] py-4 transition-colors ${form.pay === value ? "border-fg" : "border-line"}`}>
+                <input type="radio" name="pay" value={value} checked={form.pay === value} onChange={set("pay")} className="accent-accent" />
                 <span>{name}<small className="block text-[12.5px] text-muted">{hint}</small></span>
               </label>
             ))}
+            <p className="text-xs text-muted">Les moyens Mobile Money et carte seront affichés uniquement lorsqu’ils seront réellement intégrés.</p>
           </fieldset>
 
-          <p className="min-h-[1.2em] font-display text-base italic text-accent">{error}</p>
-          <button type="submit" className="btn w-full">Confirmer · {formatPrice(total)}</button>
+          <p className="min-h-[1.2em] font-display text-base italic text-accent" role="alert">{error}</p>
+          <button type="submit" className="btn w-full" disabled={submitting}>
+            {submitting ? "Enregistrement…" : `Confirmer · ${formatPrice(total)}`}
+          </button>
         </form>
 
         <aside className="-order-1 grid gap-4 bg-surface p-6 md:sticky md:top-24 md:order-none lg:p-9">
           <h2 className="text-[28px]">Récapitulatif</h2>
-          {cart.map((i) => {
-            const p = getProduct(i.id);
-            return (
-              <div key={i.key} className="grid grid-cols-[56px_1fr_auto] gap-4 border-b border-line pb-4">
-                <div className="aspect-[3/4] overflow-hidden"><ProductImage product={p} color={i.color} /></div>
-                <div><h3 className="text-base font-normal leading-tight">{p.name}</h3><p className="text-[12.5px] text-muted">{COLORS[i.color].n}{i.size ? ` · ${i.size}` : ""} · ×{i.qty}</p></div>
-                <span className="text-[13px] tabular-nums">{formatPrice(p.price * i.qty)}</span>
+          {rows.map(({ item, product, unitPrice }) => (
+            <div key={item.key} className="grid grid-cols-[56px_1fr_auto] gap-4 border-b border-line pb-4">
+              <div className="aspect-[3/4] overflow-hidden"><ProductImage product={product} color={item.color} /></div>
+              <div>
+                <h3 className="text-base font-normal leading-tight">{product?.name || "Produit indisponible"}</h3>
+                <p className="text-[12.5px] text-muted">{colorLabel(product, item.color)}{item.size ? ` · ${item.size}` : ""} · ×{item.qty}</p>
               </div>
-            );
-          })}
+              <span className="text-[13px] tabular-nums">{formatPrice(unitPrice * item.qty)}</span>
+            </div>
+          ))}
           <div className="flex justify-between text-muted tabular-nums"><span>Sous-total</span><span>{formatPrice(subtotal)}</span></div>
-          <div className="flex justify-between text-muted tabular-nums"><span>Livraison ({f.city})</span><span>{fee ? formatPrice(fee) : "Offerte"}</span></div>
-          <div className="flex justify-between border-t border-line pt-3.5 tabular-nums"><span>Total</span><b className="text-lg font-normal">{formatPrice(total)}</b></div>
+          <div className="flex justify-between text-muted tabular-nums"><span>Livraison ({form.city})</span><span>{fee ? formatPrice(fee) : "Offerte"}</span></div>
+          <div className="flex justify-between border-t border-line pt-3.5 tabular-nums"><span>Total estimé</span><b className="text-lg font-normal">{formatPrice(total)}</b></div>
+          <p className="text-[11px] leading-relaxed text-muted">Le montant final est recalculé et validé par le serveur au moment de la commande.</p>
         </aside>
       </section>
     </>

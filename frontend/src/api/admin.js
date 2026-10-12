@@ -35,6 +35,16 @@ export const adminApi = {
   me: () => adminGet("auth/me"),
   dashboard: () => adminGet("dashboard"),
 
+  orders: ({ q = "", status = "" } = {}) => {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (status) params.set("status", status);
+    const query = params.toString();
+    return adminGet(`orders${query ? `?${query}` : ""}`);
+  },
+  order: (id) => adminGet(`orders/${id}`),
+  updateOrderStatus: (id, payload) => adminPatch(`orders/${id}/status`, payload),
+
   categories: () => adminGet("categories"),
   createCategory: (payload) => adminPost("categories", payload),
   updateCategory: (id, payload) => adminPatch(`categories/${id}`, payload),
@@ -67,6 +77,7 @@ export const adminApi = {
     body: formData,
     headers: authHeaders(),
   }),
+  reorderImages: (productId, imageIds) => adminPatch(`products/${productId}/images/order`, { image_ids: imageIds }),
   updateImage: (id, payload) => adminPatch(`images/${id}`, payload),
   deleteImage: (id) => adminDelete(`images/${id}`),
 };

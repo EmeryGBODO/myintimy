@@ -5,6 +5,7 @@ import { useAdmin } from "./admin-context.js";
 
 const NAV = [
   ["/admin", "Tableau de bord", true],
+  ["/admin/orders", "Commandes"],
   ["/admin/products", "Produits"],
   ["/admin/categories", "Catégories"],
   ["/admin/references", "Référentiels"],
