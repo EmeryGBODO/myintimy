@@ -10,6 +10,7 @@ import {
   buttonClass,
   inputClass,
 } from "../../admin/AdminUI.jsx";
+import { formatDateTime } from "../../admin/format.js";
 
 function availabilityTone(quantity) {
   if (quantity <= 0) return "danger";
@@ -23,6 +24,9 @@ export default function AdminInventory() {
   const [error, setError] = useState(null);
   const [q, setQ] = useState("");
   const [delta, setDelta] = useState({});
+  const [historyVariant, setHistoryVariant] = useState(null);
+  const [movements, setMovements] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -65,6 +69,20 @@ export default function AdminInventory() {
       await load();
     } catch (err) {
       setError(err);
+    }
+  }
+
+  async function showHistory(variant) {
+    setHistoryVariant(variant);
+    setHistoryLoading(true);
+    setError(null);
+    try {
+      setMovements(await adminApi.movements(variant.id));
+    } catch (err) {
+      setError(err);
+      setMovements([]);
+    } finally {
+      setHistoryLoading(false);
     }
   }
 
@@ -122,18 +140,21 @@ export default function AdminInventory() {
                     </div>
                   </dl>
 
-                  <div className="mt-5 flex items-end gap-2 border-t border-line pt-4">
-                    <label className="min-w-0 flex-1">
-                      <span className="field-label">Ajustement</span>
-                      <input
-                        className={`${inputClass} mt-1`}
-                        type="number"
-                        placeholder="+5 / -2"
-                        value={delta[variant.id] ?? ""}
-                        onChange={(event) => setDelta((current) => ({ ...current, [variant.id]: event.target.value }))}
-                      />
-                    </label>
-                    <button className={buttonClass} onClick={() => adjust(variant)}>Valider</button>
+                  <div className="mt-5 border-t border-line pt-4">
+                    <div className="flex items-end gap-2">
+                      <label className="min-w-0 flex-1">
+                        <span className="field-label">Ajustement</span>
+                        <input
+                          className={`${inputClass} mt-1`}
+                          type="number"
+                          placeholder="+5 / -2"
+                          value={delta[variant.id] ?? ""}
+                          onChange={(event) => setDelta((current) => ({ ...current, [variant.id]: event.target.value }))}
+                        />
+                      </label>
+                      <button className={buttonClass} onClick={() => adjust(variant)}>Valider</button>
+                    </div>
+                    <button type="button" className="lnk mt-4" onClick={() => showHistory(variant)}>Voir l’historique</button>
                   </div>
                 </article>
               ))}
@@ -167,16 +188,19 @@ export default function AdminInventory() {
                         </AdminStatus>
                       </td>
                       <td className="p-4">
-                        <div className="flex max-w-[230px] items-end gap-2">
-                          <input
-                            className={inputClass}
-                            type="number"
-                            aria-label={`Ajustement de stock pour ${variant.sku}`}
-                            placeholder="+5 / -2"
-                            value={delta[variant.id] ?? ""}
-                            onChange={(event) => setDelta((current) => ({ ...current, [variant.id]: event.target.value }))}
-                          />
-                          <button className={buttonClass} onClick={() => adjust(variant)}>OK</button>
+                        <div className="flex max-w-[260px] flex-col gap-2">
+                          <div className="flex items-end gap-2">
+                            <input
+                              className={inputClass}
+                              type="number"
+                              aria-label={`Ajustement de stock pour ${variant.sku}`}
+                              placeholder="+5 / -2"
+                              value={delta[variant.id] ?? ""}
+                              onChange={(event) => setDelta((current) => ({ ...current, [variant.id]: event.target.value }))}
+                            />
+                            <button className={buttonClass} onClick={() => adjust(variant)}>OK</button>
+                          </div>
+                          <button type="button" className="lnk self-start" onClick={() => showHistory(variant)}>Historique</button>
                         </div>
                       </td>
                     </tr>
@@ -187,6 +211,45 @@ export default function AdminInventory() {
           </>
         )}
       </AdminCard>
+
+      {historyVariant && (
+        <AdminCard className="mt-6">
+          <div className="flex flex-col gap-3 border-b border-line pb-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="eyebrow mb-1">Historique du stock</p>
+              <h2 className="font-display text-2xl font-light text-fg">{historyVariant.product.name}</h2>
+              <p className="mt-1 text-xs text-muted">{historyVariant.sku} · {historyVariant.color.name}{historyVariant.size ? ` / ${historyVariant.size.label}` : ""}</p>
+            </div>
+            <button type="button" className="lnk self-start" onClick={() => { setHistoryVariant(null); setMovements([]); }}>Fermer</button>
+          </div>
+
+          {historyLoading ? (
+            <AdminLoading />
+          ) : movements.length === 0 ? (
+            <AdminEmpty>Aucun mouvement enregistré pour cette variante.</AdminEmpty>
+          ) : (
+            <div className="divide-y divide-line">
+              {movements.map((movement) => (
+                <article key={movement.id} className="grid gap-2 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-fg">{movement.reason || "Mouvement de stock"}</span>
+                      <AdminStatus tone={movement.quantity_delta < 0 ? "warning" : "success"}>
+                        {movement.quantity_delta > 0 ? "+" : ""}{movement.quantity_delta}
+                      </AdminStatus>
+                    </div>
+                    <div className="mt-1 text-xs text-muted">
+                      {formatDateTime(movement.created_at)} · stock après mouvement : {movement.quantity_after}
+                      {movement.reference ? ` · réf. ${movement.reference}` : ""}
+                    </div>
+                  </div>
+                  <div className="text-xs uppercase tracking-[.12em] text-muted">{movement.movement_type.replaceAll("_", " ")}</div>
+                </article>
+              ))}
+            </div>
+          )}
+        </AdminCard>
+      )}
     </>
   );
 }

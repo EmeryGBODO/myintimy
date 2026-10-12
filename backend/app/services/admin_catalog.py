@@ -13,8 +13,12 @@ from app.models.catalog import Category, Color, InventoryMovement, Product, Prod
 from app.schemas.admin import (
     AdminCategoryCreate,
     AdminCategoryUpdate,
+    AdminColorCreate,
+    AdminColorUpdate,
     AdminProductCreate,
     AdminProductUpdate,
+    AdminSizeCreate,
+    AdminSizeUpdate,
     AdminVariantCreate,
     AdminVariantUpdate,
 )
@@ -139,8 +143,83 @@ class AdminCatalogService:
     def list_colors(self) -> list[Color]:
         return list(self.db.scalars(select(Color).order_by(Color.display_order, Color.name)))
 
+    def create_color(self, data: AdminColorCreate) -> Color:
+        color = Color(
+            **data.model_dump(exclude={"slug", "hex_value"}),
+            slug=slugify(data.slug or data.name),
+            hex_value=data.hex_value.upper(),
+        )
+        self.db.add(color)
+        self._commit(code="COLOR_CONFLICT", message="Une couleur utilise déjà ce slug.")
+        self.db.refresh(color)
+        return color
+
+    def update_color(self, color_id: UUID, data: AdminColorUpdate) -> Color:
+        color = self.db.get(Color, color_id)
+        if not color:
+            raise ApiException(status_code=404, code="COLOR_NOT_FOUND", message="La couleur demandée n'existe pas.")
+        changes = data.model_dump(exclude_unset=True)
+        if "slug" in changes:
+            changes["slug"] = slugify(changes["slug"])
+        if "hex_value" in changes:
+            changes["hex_value"] = changes["hex_value"].upper()
+        for key, value in changes.items():
+            setattr(color, key, value)
+        self._commit(code="COLOR_CONFLICT", message="Une couleur utilise déjà ce slug.")
+        self.db.refresh(color)
+        return color
+
+    def delete_color(self, color_id: UUID) -> None:
+        color = self.db.get(Color, color_id)
+        if not color:
+            raise ApiException(status_code=404, code="COLOR_NOT_FOUND", message="La couleur demandée n'existe pas.")
+        count = self.db.scalar(select(func.count(ProductVariant.id)).where(ProductVariant.color_id == color_id)) or 0
+        if count:
+            raise ApiException(status_code=409, code="COLOR_IN_USE", message="Cette couleur est encore utilisée par des variantes.")
+        for image in self.db.scalars(select(ProductImage).where(ProductImage.color_id == color_id)):
+            image.color_id = None
+        self.db.delete(color)
+        self.db.commit()
+
     def list_sizes(self) -> list[Size]:
         return list(self.db.scalars(select(Size).order_by(Size.display_order, Size.label)))
+
+    def create_size(self, data: AdminSizeCreate) -> Size:
+        size = Size(
+            code=data.code.strip().upper(),
+            label=data.label.strip(),
+            display_order=data.display_order,
+            is_active=data.is_active,
+        )
+        self.db.add(size)
+        self._commit(code="SIZE_CONFLICT", message="Une taille utilise déjà ce code.")
+        self.db.refresh(size)
+        return size
+
+    def update_size(self, size_id: UUID, data: AdminSizeUpdate) -> Size:
+        size = self.db.get(Size, size_id)
+        if not size:
+            raise ApiException(status_code=404, code="SIZE_NOT_FOUND", message="La taille demandée n'existe pas.")
+        changes = data.model_dump(exclude_unset=True)
+        if "code" in changes:
+            changes["code"] = changes["code"].strip().upper()
+        if "label" in changes:
+            changes["label"] = changes["label"].strip()
+        for key, value in changes.items():
+            setattr(size, key, value)
+        self._commit(code="SIZE_CONFLICT", message="Une taille utilise déjà ce code.")
+        self.db.refresh(size)
+        return size
+
+    def delete_size(self, size_id: UUID) -> None:
+        size = self.db.get(Size, size_id)
+        if not size:
+            raise ApiException(status_code=404, code="SIZE_NOT_FOUND", message="La taille demandée n'existe pas.")
+        count = self.db.scalar(select(func.count(ProductVariant.id)).where(ProductVariant.size_id == size_id)) or 0
+        if count:
+            raise ApiException(status_code=409, code="SIZE_IN_USE", message="Cette taille est encore utilisée par des variantes.")
+        self.db.delete(size)
+        self.db.commit()
 
     def create_variant(self, product_id: UUID, data: AdminVariantCreate) -> ProductVariant:
         self.get_product(product_id)

@@ -8,6 +8,7 @@ import AdminInventory from "../pages/admin/AdminInventory.jsx";
 import AdminLogin from "../pages/admin/AdminLogin.jsx";
 import AdminProductForm from "../pages/admin/AdminProductForm.jsx";
 import AdminProducts from "../pages/admin/AdminProducts.jsx";
+import AdminReferences from "../pages/admin/AdminReferences.jsx";
 
 function ProtectedAdmin() {
   const { authenticated, loading } = useAdmin();
@@ -36,6 +37,7 @@ function RoutesTree() {
         <Route path="/admin/products/new" element={<AdminProductForm />} />
         <Route path="/admin/products/:id" element={<AdminProductForm />} />
         <Route path="/admin/categories" element={<AdminCategories />} />
+        <Route path="/admin/references" element={<AdminReferences />} />
         <Route path="/admin/inventory" element={<AdminInventory />} />
       </Route>
       <Route path="*" element={<Navigate to="/admin" replace />} />

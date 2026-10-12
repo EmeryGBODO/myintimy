@@ -62,7 +62,7 @@ def product_data(product: Product) -> dict:
 
     colors = sorted(colors_by_slug.values(), key=lambda item: (item.display_order, item.name))
     sizes = sorted(sizes_by_code.values(), key=lambda item: (item.display_order, item.code))
-    images = sorted(product.images, key=lambda item: (not item.is_primary, item.position))
+    images = sorted(product.images, key=lambda item: item.position)
 
     return {
         "id": product.id,

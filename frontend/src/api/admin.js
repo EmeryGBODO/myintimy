@@ -47,7 +47,14 @@ export const adminApi = {
   deleteProduct: (id) => adminDelete(`products/${id}`),
 
   colors: () => adminGet("colors"),
+  createColor: (payload) => adminPost("colors", payload),
+  updateColor: (id, payload) => adminPatch(`colors/${id}`, payload),
+  deleteColor: (id) => adminDelete(`colors/${id}`),
+
   sizes: () => adminGet("sizes"),
+  createSize: (payload) => adminPost("sizes", payload),
+  updateSize: (id, payload) => adminPatch(`sizes/${id}`, payload),
+  deleteSize: (id) => adminDelete(`sizes/${id}`),
   createVariant: (productId, payload) => adminPost(`products/${productId}/variants`, payload),
   updateVariant: (id, payload) => adminPatch(`variants/${id}`, payload),
   deleteVariant: (id) => adminDelete(`variants/${id}`),

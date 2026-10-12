@@ -12,10 +12,17 @@ from app.schemas.admin import (
     AdminCategoryCreate,
     AdminCategoryOut,
     AdminCategoryUpdate,
+    AdminColorCreate,
+    AdminColorOut,
+    AdminColorUpdate,
     AdminDashboardOut,
+    AdminImageOrderUpdate,
     AdminImageUpdate,
     AdminProductCreate,
     AdminProductUpdate,
+    AdminSizeCreate,
+    AdminSizeOut,
+    AdminSizeUpdate,
     AdminStockAdjustIn,
     AdminStockMovementOut,
     AdminVariantCreate,
@@ -157,14 +164,44 @@ def inventory(db: Session = Depends(get_db)):
     }
 
 
-@router.get("/colors")
+@router.get("/colors", response_model=list[AdminColorOut])
 def colors(db: Session = Depends(get_db)):
-    return [{"id": str(c.id), "slug": c.slug, "name": c.name, "hex_value": c.hex_value, "is_active": c.is_active} for c in AdminCatalogService(db).list_colors()]
+    return AdminCatalogService(db).list_colors()
 
 
-@router.get("/sizes")
+@router.post("/colors", response_model=AdminColorOut, status_code=201)
+def create_color(payload: AdminColorCreate, db: Session = Depends(get_db)):
+    return AdminCatalogService(db).create_color(payload)
+
+
+@router.patch("/colors/{color_id}", response_model=AdminColorOut)
+def update_color(color_id: UUID, payload: AdminColorUpdate, db: Session = Depends(get_db)):
+    return AdminCatalogService(db).update_color(color_id, payload)
+
+
+@router.delete("/colors/{color_id}", status_code=204)
+def delete_color(color_id: UUID, db: Session = Depends(get_db)):
+    AdminCatalogService(db).delete_color(color_id)
+
+
+@router.get("/sizes", response_model=list[AdminSizeOut])
 def sizes(db: Session = Depends(get_db)):
-    return [{"id": str(s.id), "code": s.code, "label": s.label, "is_active": s.is_active} for s in AdminCatalogService(db).list_sizes()]
+    return AdminCatalogService(db).list_sizes()
+
+
+@router.post("/sizes", response_model=AdminSizeOut, status_code=201)
+def create_size(payload: AdminSizeCreate, db: Session = Depends(get_db)):
+    return AdminCatalogService(db).create_size(payload)
+
+
+@router.patch("/sizes/{size_id}", response_model=AdminSizeOut)
+def update_size(size_id: UUID, payload: AdminSizeUpdate, db: Session = Depends(get_db)):
+    return AdminCatalogService(db).update_size(size_id, payload)
+
+
+@router.delete("/sizes/{size_id}", status_code=204)
+def delete_size(size_id: UUID, db: Session = Depends(get_db)):
+    AdminCatalogService(db).delete_size(size_id)
 
 
 @router.post("/products/{product_id}/variants", status_code=201)
@@ -215,6 +252,12 @@ async def upload_image(
 ):
     image = await ProductImageService(db).upload(product_id, file, alt_text=alt_text, color_id=color_id)
     return _image_dict(image)
+
+
+@router.patch("/products/{product_id}/images/order")
+def reorder_images(product_id: UUID, payload: AdminImageOrderUpdate, db: Session = Depends(get_db)):
+    images = ProductImageService(db).reorder(product_id, payload.image_ids)
+    return [_image_dict(image) for image in images]
 
 
 @router.patch("/images/{image_id}")

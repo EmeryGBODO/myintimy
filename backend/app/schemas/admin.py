@@ -58,6 +58,61 @@ class AdminCategoryOut(BaseModel):
     updated_at: datetime
 
 
+class AdminColorCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    slug: str | None = Field(default=None, max_length=60)
+    hex_value: str = Field(pattern=r"^#[0-9A-Fa-f]{6}$")
+    display_order: int = 0
+    is_active: bool = True
+
+
+class AdminColorUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    slug: str | None = Field(default=None, min_length=1, max_length=60)
+    hex_value: str | None = Field(default=None, pattern=r"^#[0-9A-Fa-f]{6}$")
+    display_order: int | None = None
+    is_active: bool | None = None
+
+
+class AdminColorOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    slug: str
+    name: str
+    hex_value: str
+    display_order: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class AdminSizeCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=30)
+    label: str = Field(min_length=1, max_length=60)
+    display_order: int = 0
+    is_active: bool = True
+
+
+class AdminSizeUpdate(BaseModel):
+    code: str | None = Field(default=None, min_length=1, max_length=30)
+    label: str | None = Field(default=None, min_length=1, max_length=60)
+    display_order: int | None = None
+    is_active: bool | None = None
+
+
+class AdminSizeOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    code: str
+    label: str
+    display_order: int
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
 class AdminProductCreate(BaseModel):
     category_id: UUID
     name: str = Field(min_length=1, max_length=180)
@@ -106,6 +161,10 @@ class AdminImageUpdate(BaseModel):
     position: int | None = Field(default=None, ge=0)
     is_primary: bool | None = None
     color_id: UUID | None = None
+
+
+class AdminImageOrderUpdate(BaseModel):
+    image_ids: list[UUID] = Field(min_length=1)
 
 
 class AdminStockAdjustIn(BaseModel):

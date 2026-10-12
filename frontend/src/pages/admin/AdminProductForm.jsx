@@ -49,6 +49,8 @@ export default function AdminProductForm() {
   const [colors, setColors] = useState([]);
   const [sizes, setSizes] = useState([]);
   const [variant, setVariant] = useState(EMPTY_VARIANT);
+  const [editingVariantId, setEditingVariantId] = useState(null);
+  const [variantEdit, setVariantEdit] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [imageAlt, setImageAlt] = useState("");
   const [loading, setLoading] = useState(true);
@@ -159,6 +161,41 @@ export default function AdminProductForm() {
     if (!window.confirm("Supprimer cette variante ?")) return;
     try {
       await adminApi.deleteVariant(variantId);
+      await reloadProduct(productId);
+    } catch (err) {
+      setError(err);
+    }
+  }
+
+  function startVariantEdit(currentVariant) {
+    setEditingVariantId(currentVariant.id);
+    setVariantEdit({
+      color_id: currentVariant.color.id,
+      size_id: currentVariant.size?.id || "",
+      sku: currentVariant.sku,
+      price_xof: currentVariant.price_xof ?? "",
+      is_active: currentVariant.is_active,
+    });
+  }
+
+  function cancelVariantEdit() {
+    setEditingVariantId(null);
+    setVariantEdit(null);
+  }
+
+  async function saveVariantEdit(event, variantId) {
+    event.preventDefault();
+    if (!variantEdit) return;
+
+    try {
+      await adminApi.updateVariant(variantId, {
+        color_id: variantEdit.color_id,
+        size_id: variantEdit.size_id || null,
+        sku: variantEdit.sku.trim(),
+        price_xof: variantEdit.price_xof === "" ? null : Number(variantEdit.price_xof),
+        is_active: variantEdit.is_active,
+      });
+      cancelVariantEdit();
       await reloadProduct(productId);
     } catch (err) {
       setError(err);
@@ -306,7 +343,7 @@ export default function AdminProductForm() {
                 <span className="field-label">Couleur</span>
                 <select required className={`${inputClass} mt-1`} value={variant.color_id} onChange={(event) => setVariant({ ...variant, color_id: event.target.value })}>
                   <option value="">Choisir…</option>
-                  {colors.map((color) => <option key={color.id} value={color.id}>{color.name}</option>)}
+                  {colors.filter((color) => color.is_active).map((color) => <option key={color.id} value={color.id}>{color.name}</option>)}
                 </select>
               </label>
 
@@ -314,7 +351,7 @@ export default function AdminProductForm() {
                 <span className="field-label">Taille</span>
                 <select className={`${inputClass} mt-1`} value={variant.size_id} onChange={(event) => setVariant({ ...variant, size_id: event.target.value })}>
                   <option value="">Sans taille</option>
-                  {sizes.map((size) => <option key={size.id} value={size.id}>{size.label}</option>)}
+                  {sizes.filter((size) => size.is_active).map((size) => <option key={size.id} value={size.id}>{size.label}</option>)}
                 </select>
               </label>
 
@@ -341,28 +378,74 @@ export default function AdminProductForm() {
             <div className="mt-7 space-y-3">
               {product?.variants?.map((currentVariant) => (
                 <article key={currentVariant.id} className="border border-line bg-bg/45 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="font-medium text-fg">
-                        {currentVariant.color.name}{currentVariant.size ? ` / ${currentVariant.size.label}` : ""}
+                  {editingVariantId === currentVariant.id && variantEdit ? (
+                    <form onSubmit={(event) => saveVariantEdit(event, currentVariant.id)} className="grid gap-4 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="field-label">Couleur</span>
+                        <select required className={`${inputClass} mt-1`} value={variantEdit.color_id} onChange={(event) => setVariantEdit({ ...variantEdit, color_id: event.target.value })}>
+                          {colors.map((color) => <option key={color.id} value={color.id}>{color.name}{color.is_active ? "" : " (masquée)"}</option>)}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="field-label">Taille</span>
+                        <select className={`${inputClass} mt-1`} value={variantEdit.size_id} onChange={(event) => setVariantEdit({ ...variantEdit, size_id: event.target.value })}>
+                          <option value="">Sans taille</option>
+                          {sizes.map((size) => <option key={size.id} value={size.id}>{size.label}{size.is_active ? "" : " (masquée)"}</option>)}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="field-label">SKU</span>
+                        <input required className={`${inputClass} mt-1`} value={variantEdit.sku} onChange={(event) => setVariantEdit({ ...variantEdit, sku: event.target.value })} />
+                      </label>
+                      <label className="block">
+                        <span className="field-label">Prix spécifique</span>
+                        <input type="number" min="0" className={`${inputClass} mt-1`} placeholder="Prix du produit" value={variantEdit.price_xof} onChange={(event) => setVariantEdit({ ...variantEdit, price_xof: event.target.value })} />
+                      </label>
+                      <label className="flex items-center gap-2.5 text-sm text-fg sm:col-span-2">
+                        <input type="checkbox" checked={variantEdit.is_active} onChange={(event) => setVariantEdit({ ...variantEdit, is_active: event.target.checked })} />
+                        Variante active
+                      </label>
+                      <div className="flex flex-col gap-2 border-t border-line pt-4 sm:col-span-2 sm:flex-row">
+                        <button className={`${buttonClass} w-full sm:w-auto`}>Enregistrer</button>
+                        <button type="button" className={`${ghostButtonClass} w-full sm:w-auto`} onClick={cancelVariantEdit}>Annuler</button>
                       </div>
-                      <div className="mt-0.5 break-all font-mono text-[11px] text-muted">{currentVariant.sku}</div>
-                    </div>
-                    <button type="button" onClick={() => removeVariant(currentVariant.id)} className="lnk shrink-0 text-danger">
-                      Supprimer
-                    </button>
-                  </div>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="font-medium text-fg">
+                              {currentVariant.color.name}{currentVariant.size ? ` / ${currentVariant.size.label}` : ""}
+                            </div>
+                            <AdminStatus tone={currentVariant.is_active ? "success" : "neutral"}>
+                              {currentVariant.is_active ? "Active" : "Masquée"}
+                            </AdminStatus>
+                          </div>
+                          <div className="mt-1 break-all font-mono text-[11px] text-muted">{currentVariant.sku}</div>
+                          {currentVariant.price_xof != null && (
+                            <div className="mt-1 text-xs text-muted">Prix spécifique : {formatXof(currentVariant.price_xof)}</div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          <button type="button" onClick={() => startVariantEdit(currentVariant)} className="lnk shrink-0">Modifier</button>
+                          <button type="button" onClick={() => removeVariant(currentVariant.id)} className="lnk shrink-0 text-danger">Supprimer</button>
+                        </div>
+                      </div>
 
-                  <div className="mt-4 flex flex-col gap-3 border-t border-line pt-3 sm:flex-row sm:items-center">
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-                      <span>Stock <strong className="font-medium text-fg">{currentVariant.stock_quantity}</strong></span>
-                      <span>Disponible <strong className="font-medium text-fg">{currentVariant.available_quantity}</strong></span>
-                    </div>
-                    <div className="flex gap-2 sm:ml-auto">
-                      <button type="button" className={compactButtonClass} onClick={() => adjustStock(currentVariant, -1)} disabled={currentVariant.available_quantity <= 0}>−1</button>
-                      <button type="button" className={compactButtonClass} onClick={() => adjustStock(currentVariant, 1)}>+1</button>
-                    </div>
-                  </div>
+                      <div className="mt-4 flex flex-col gap-3 border-t border-line pt-3 sm:flex-row sm:items-center">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+                          <span>Stock <strong className="font-medium text-fg">{currentVariant.stock_quantity}</strong></span>
+                          <span>Réservé <strong className="font-medium text-fg">{currentVariant.reserved_quantity}</strong></span>
+                          <span>Disponible <strong className="font-medium text-fg">{currentVariant.available_quantity}</strong></span>
+                        </div>
+                        <div className="flex gap-2 sm:ml-auto">
+                          <button type="button" className={compactButtonClass} onClick={() => adjustStock(currentVariant, -1)} disabled={currentVariant.available_quantity <= 0}>−1</button>
+                          <button type="button" className={compactButtonClass} onClick={() => adjustStock(currentVariant, 1)}>+1</button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </article>
               ))}
             </div>

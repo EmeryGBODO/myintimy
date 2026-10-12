@@ -7,6 +7,7 @@ const NAV = [
   ["/admin", "Tableau de bord", true],
   ["/admin/products", "Produits"],
   ["/admin/categories", "Catégories"],
+  ["/admin/references", "Référentiels"],
   ["/admin/inventory", "Stocks"],
 ];
 
