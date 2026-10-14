@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CITIES, formatPrice, shippingFee } from "../data/catalog.js";
 import ProductImage from "../components/ProductImage.jsx";
@@ -7,6 +7,8 @@ import { useCatalog } from "../catalog/catalog-context.js";
 import { getCartItemUnitPrice } from "../domain/cart.js";
 import { ordersApi } from "../api/orders.js";
 import { useShop } from "../context/shop-context.js";
+import { useClient } from "../account/client-context.js";
+import { customerApi } from "../api/customer.js";
 
 const PAYMENTS = [
   ["cash_on_delivery", "Paiement à la livraison", "Le règlement est effectué à la réception du colis."],
@@ -37,6 +39,7 @@ function colorLabel(product, slug) {
 
 export default function Checkout() {
   const { cart, subtotal, clearCart } = useShop();
+  const { customer } = useClient();
   const { getProduct, source } = useCatalog();
   const [form, setForm] = useState({
     name: "",
@@ -51,6 +54,18 @@ export default function Checkout() {
   const [error, setError] = useState("");
   const [order, setOrder] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [addresses, setAddresses] = useState([]);
+
+  useEffect(() => {
+    if (!customer) return undefined;
+    setForm((current) => ({ ...current, name: current.name || customer.full_name || "", phone: current.phone || customer.phone || "", email: current.email || customer.email || "" }));
+    customerApi.addresses.list().then((items) => {
+      setAddresses(items);
+      const preferred = items.find((item) => item.is_default);
+      if (preferred) setForm((current) => ({ ...current, name: current.name || preferred.recipient_name, phone: current.phone || preferred.phone, city: preferred.city, area: preferred.area, address: preferred.address }));
+    }).catch(() => {});
+    return undefined;
+  }, [customer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (key) => (event) => setForm((current) => ({
     ...current,
@@ -77,7 +92,7 @@ export default function Checkout() {
           Votre commande est confirmée et le stock correspondant a été réservé. Le règlement sera effectué à la livraison.
         </p>
         <p className="text-sm text-muted">Total confirmé : {formatPrice(order.total_xof)}</p>
-        <Link to="/" className="btn btn-ghost">Retour à l’accueil</Link>
+        {customer ? <Link to={`/compte/commandes/${order.reference}`} className="btn btn-ghost">Voir ma commande</Link> : <Link to="/" className="btn btn-ghost">Retour à l’accueil</Link>}
       </section>
     );
   }
@@ -156,6 +171,7 @@ export default function Checkout() {
 
           <fieldset className="m-0 grid gap-4 border-0 p-0">
             <Legend>Livraison</Legend>
+            {addresses.length > 0 && <div className="grid gap-1.5"><label htmlFor="saved-address" className="field-label">Adresse enregistrée</label><select id="saved-address" className="field" defaultValue="" onChange={(event) => { const selected=addresses.find((item)=>item.id===event.target.value); if(selected)setForm((current)=>({...current,name:selected.recipient_name,phone:selected.phone,city:selected.city,area:selected.area,address:selected.address})); }}><option value="">Saisie manuelle</option>{addresses.map((item)=><option key={item.id} value={item.id}>{item.label} · {item.area}, {item.city}</option>)}</select></div>}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid min-w-0 gap-1.5">
                 <label htmlFor="city" className="field-label">Ville</label>

@@ -1,0 +1,16 @@
+import { useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { customerApi } from "../../api/customer.js";
+import { PageHead } from "../../components/Shared.jsx";
+
+export function ForgotPassword() {
+  const [email, setEmail] = useState(""); const [message, setMessage] = useState(""); const [devToken, setDevToken] = useState(null); const [busy, setBusy] = useState(false);
+  async function submit(e) { e.preventDefault(); setBusy(true); try { const result=await customerApi.requestPasswordReset(email); setMessage(result.message); setDevToken(result.development_token || null); } catch(err){ setMessage(err?.message || "Impossible de traiter la demande."); } finally { setBusy(false); } }
+  return <><PageHead crumbs={[{to:"/",label:"Accueil"},{label:"Mot de passe oublié"}]} title={<>Retrouver votre <span className="ital">accès</span></>} /><section className="wrap pb-24"><form onSubmit={submit} className="mx-auto grid max-w-[520px] gap-5 border border-line bg-surface p-6 sm:p-9"><label className="grid gap-1.5"><span className="field-label">E-mail</span><input className="field" type="email" value={email} onChange={(e)=>setEmail(e.target.value)} required /></label><button className="btn" disabled={busy}>{busy?"Envoi…":"Recevoir le lien"}</button>{message && <p className="text-sm text-muted">{message}</p>}{devToken && <Link className="text-sm text-accent underline" to={`/compte/reinitialiser?token=${encodeURIComponent(devToken)}`}>Lien de test local : définir le nouveau mot de passe</Link>}<Link to="/compte/connexion" className="text-sm text-muted hover:text-fg">Retour à la connexion</Link></form></section></>;
+}
+
+export function ResetPassword() {
+  const [params] = useSearchParams(); const token=params.get("token")||""; const [password,setPassword]=useState(""); const [confirm,setConfirm]=useState(""); const [message,setMessage]=useState(""); const [done,setDone]=useState(false);
+  async function submit(e){e.preventDefault();setMessage(""); if(password.length<10)return setMessage("Le mot de passe doit contenir au moins 10 caractères."); if(password!==confirm)return setMessage("Les mots de passe ne correspondent pas."); try{await customerApi.confirmPasswordReset(token,password);setDone(true);}catch(err){setMessage(err?.message||"Réinitialisation impossible.");}}
+  return <><PageHead crumbs={[{to:"/",label:"Accueil"},{label:"Nouveau mot de passe"}]} title={<>Nouveau mot de <span className="ital">passe</span></>} /><section className="wrap pb-24"><div className="mx-auto max-w-[520px] border border-line bg-surface p-6 sm:p-9">{done?<div className="grid gap-4"><p>Votre mot de passe a été modifié.</p><Link className="btn" to="/compte/connexion">Se connecter</Link></div>:<form onSubmit={submit} className="grid gap-5"><label className="grid gap-1.5"><span className="field-label">Nouveau mot de passe</span><input className="field" type="password" value={password} onChange={(e)=>setPassword(e.target.value)} required /></label><label className="grid gap-1.5"><span className="field-label">Confirmation</span><input className="field" type="password" value={confirm} onChange={(e)=>setConfirm(e.target.value)} required /></label><p className="text-sm text-danger">{message}</p><button className="btn" disabled={!token}>Enregistrer</button></form>}</div></section></>;
+}

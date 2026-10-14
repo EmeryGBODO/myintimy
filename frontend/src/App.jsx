@@ -12,6 +12,14 @@ import Favorites from "./pages/Favorites.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import Delivery from "./pages/Delivery.jsx";
 import NotFound from "./pages/NotFound.jsx";
+import AccountLayout from "./account/AccountLayout.jsx";
+import AccountLogin from "./pages/account/AccountLogin.jsx";
+import AccountRegister from "./pages/account/AccountRegister.jsx";
+import { ForgotPassword, ResetPassword } from "./pages/account/AccountPassword.jsx";
+import AccountProfile from "./pages/account/AccountProfile.jsx";
+import AccountAddresses from "./pages/account/AccountAddresses.jsx";
+import AccountOrders from "./pages/account/AccountOrders.jsx";
+import AccountOrderDetail from "./pages/account/AccountOrderDetail.jsx";
 import AdminRoutes from "./admin/AdminRoutes.jsx";
 
 /* `key` remet la page à zéro (filtres, taille choisie…) quand on change de catégorie ou de produit */
@@ -48,6 +56,16 @@ export default function App() {
           <Route path="/favoris" element={<Favorites />} />
           <Route path="/commande" element={<Checkout />} />
           <Route path="/livraison" element={<Delivery />} />
+          <Route path="/compte/connexion" element={<AccountLogin />} />
+          <Route path="/compte/inscription" element={<AccountRegister />} />
+          <Route path="/compte/mot-de-passe-oublie" element={<ForgotPassword />} />
+          <Route path="/compte/reinitialiser" element={<ResetPassword />} />
+          <Route path="/compte" element={<AccountLayout />}>
+            <Route index element={<AccountProfile />} />
+            <Route path="adresses" element={<AccountAddresses />} />
+            <Route path="commandes" element={<AccountOrders />} />
+            <Route path="commandes/:reference" element={<AccountOrderDetail />} />
+          </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

@@ -17,3 +17,5 @@ export const IconBox = make(<><path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z" 
 export const IconLock = make(<><rect x="5" y="10.5" width="14" height="10" rx="1" /><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></>);
 export const IconReturn = make(<><path d="M9 14L4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-3" /></>);
 export const IconChat = make(<><path d="M4 18.5V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H7.5z" /><path d="M8.5 9h7M8.5 12h4.5" /></>);
+
+export const IconUser = make(<><circle cx="12" cy="8" r="3.5" /><path d="M5.5 20c.7-4 3-6 6.5-6s5.8 2 6.5 6" /></>);

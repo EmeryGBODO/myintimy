@@ -80,7 +80,7 @@ export function CartDrawer() {
 export function MobileMenu() {
   const { panel, closePanel } = useShop();
   const open = panel === "menu";
-  const links = [...NAV, { to: "/favoris", label: "Favoris" }];
+  const links = [...NAV, { to: "/favoris", label: "Favoris" }, { to: "/compte", label: "Mon compte" }];
   return (
     <div className={`fixed inset-0 z-[80] flex flex-col bg-bg px-6 pb-8 pt-[calc(env(safe-area-inset-top,0px)+16px)] transition-opacity duration-500 ease-lux ${open ? "opacity-100" : "pointer-events-none opacity-0"}`}>
       <div className="flex items-center justify-between">

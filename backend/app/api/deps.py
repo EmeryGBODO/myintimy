@@ -5,9 +5,10 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ApiException
-from app.core.security import decode_admin_token
+from app.core.security import decode_admin_token, decode_customer_token
 from app.db.session import get_db
 from app.models.admin import AdminUser
+from app.models.client import CustomerUser
 
 _admin_bearer = HTTPBearer(auto_error=False)
 
@@ -25,4 +26,32 @@ def get_current_admin(
     return admin
 
 
-__all__ = ["get_db", "get_current_admin"]
+__all__ = ["get_db", "get_current_admin", "get_current_customer", "get_optional_customer"]
+
+
+_customer_bearer = HTTPBearer(auto_error=False)
+
+def get_current_customer(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_customer_bearer),
+    db: Session = Depends(get_db),
+) -> CustomerUser:
+    if not credentials or credentials.scheme.lower() != "bearer":
+        raise ApiException(status_code=401, code="CUSTOMER_AUTH_REQUIRED", message="Authentification client requise.")
+    customer_id = decode_customer_token(credentials.credentials)
+    customer = db.get(CustomerUser, customer_id)
+    if not customer or not customer.is_active:
+        raise ApiException(status_code=401, code="CUSTOMER_DISABLED", message="Ce compte client n'est plus actif.")
+    return customer
+
+
+def get_optional_customer(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_customer_bearer),
+    db: Session = Depends(get_db),
+) -> CustomerUser | None:
+    if not credentials or credentials.scheme.lower() != "bearer":
+        return None
+    customer_id = decode_customer_token(credentials.credentials)
+    customer = db.get(CustomerUser, customer_id)
+    if not customer or not customer.is_active:
+        raise ApiException(status_code=401, code="CUSTOMER_DISABLED", message="Ce compte client n'est plus actif.")
+    return customer

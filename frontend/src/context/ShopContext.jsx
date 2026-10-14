@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useCatalog } from "../catalog/catalog-context.js";
 import { addCartItem, calculateSubtotal, changeCartItemQty, removeCartItem } from "../domain/cart.js";
 import { ShopContext } from "./shop-context.js";
+import { useClient } from "../account/client-context.js";
+import { customerApi } from "../api/customer.js";
 
 
 // Stockage navigateur : simple confort, le site fonctionne sans.
@@ -18,6 +20,8 @@ const systemDark = () => Boolean(window.matchMedia?.("(prefers-color-scheme: dar
 
 export function ShopProvider({ children }) {
   const { getProduct } = useCatalog();
+  const { customer } = useClient();
+  const syncedCustomer = useRef(null);
   /* Thème : null = suit le système */
   const [theme, setTheme] = useState(() => storage.get("myi-theme", null));
   const [sysDark, setSysDark] = useState(systemDark);
@@ -40,6 +44,23 @@ export function ShopProvider({ children }) {
   const [favs, setFavs] = useState(() => storage.get("myi-favs", []));
   useEffect(() => storage.set("myi-cart", cart), [cart]);
   useEffect(() => storage.set("myi-favs", favs), [favs]);
+
+
+  useEffect(() => {
+    if (!customer?.id || syncedCustomer.current === customer.id) return;
+    let active = true;
+    (async () => {
+      try {
+        const remote = await customerApi.favorites.list();
+        const serverIds = remote.map((item) => /^\d+$/.test(item.public_id) ? Number(item.public_id) : item.public_id);
+        const localIds = [...favs];
+        await Promise.all(localIds.filter((id) => !serverIds.some((remoteId) => String(remoteId) === String(id))).map((id) => customerApi.favorites.add(String(id))));
+        if (active) setFavs(Array.from(new Map([...serverIds, ...localIds].map((id) => [String(id), id])).values()));
+        syncedCustomer.current = customer.id;
+      } catch { /* Les favoris locaux restent disponibles si la synchro échoue. */ }
+    })();
+    return () => { active = false; };
+  }, [customer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Panneaux */
   const [panel, setPanel] = useState(null); // "cart" | "menu" | "search" | "sizes" | null
@@ -77,8 +98,12 @@ export function ShopProvider({ children }) {
   const clearCart = () => setCart([]);
 
   const toggleFav = (id) => {
-    const has = favs.includes(id);
-    setFavs((f) => (has ? f.filter((x) => x !== id) : [...f, id]));
+    const has = favs.some((itemId) => String(itemId) === String(id));
+    setFavs((f) => (has ? f.filter((x) => String(x) !== String(id)) : [...f, id]));
+    if (customer) {
+      const request = has ? customerApi.favorites.remove(String(id)) : customerApi.favorites.add(String(id));
+      request.catch(() => toast("Favori conservé sur cet appareil, synchronisation à réessayer."));
+    }
     toast(has ? "Retiré de vos favoris" : "Ajouté à vos favoris");
   };
 
@@ -88,7 +113,7 @@ export function ShopProvider({ children }) {
   const value = {
     isDark, toggleTheme,
     cart, cartCount, subtotal, addToCart, changeQty, removeItem, clearCart,
-    favs, toggleFav, isFav: (id) => favs.includes(id),
+    favs, toggleFav, isFav: (id) => favs.some((itemId) => String(itemId) === String(id)),
     panel, openPanel: setPanel, closePanel: () => setPanel(null),
     toastMsg, toast, ageOk, confirmAge,
   };

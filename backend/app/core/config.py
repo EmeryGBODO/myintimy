@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     jwt_secret: str = "development-only-change-me-before-production"
     admin_access_token_minutes: int = 480
+    customer_access_token_minutes: int = 10080
+    customer_password_reset_minutes: int = 30
     media_root: str = "media"
     max_product_image_bytes: int = 5 * 1024 * 1024
 

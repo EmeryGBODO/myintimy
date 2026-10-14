@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import ApiException
 from app.models.catalog import InventoryMovement, ProductVariant
+from app.models.client import CustomerUser
 from app.models.orders import Order, OrderItem, OrderStatusHistory
 from app.repositories.orders import OrderRepository
 from app.schemas.orders import OrderCreateIn
@@ -52,7 +53,7 @@ class OrderService:
                 return candidate
         raise ApiException(status_code=503, code="ORDER_REFERENCE_UNAVAILABLE", message="Impossible de générer une référence de commande.")
 
-    def create(self, data: OrderCreateIn) -> Order:
+    def create(self, data: OrderCreateIn, *, customer: CustomerUser | None = None) -> Order:
         if data.payment_method != PaymentMethod.CASH_ON_DELIVERY:
             raise ApiException(
                 status_code=422,
@@ -112,6 +113,7 @@ class OrderService:
         shipping = ShippingService.calculate_fee(city=data.city, subtotal_xof=subtotal)
         order = Order(
             reference=self._reference(),
+            customer_id=customer.id if customer else None,
             status=OrderStatus.CONFIRMED,
             payment_method=data.payment_method,
             payment_status="cash_on_delivery",

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useShop } from "../context/shop-context.js";
-import { COLORS, formatPrice } from "../data/catalog.js";
+import { formatPrice } from "../data/catalog.js";
+import { getProductColorMeta } from "../catalog/product-options.js";
 import ProductImage from "./ProductImage.jsx";
 import { IconBox, IconChat, IconHeart, IconLock, IconReturn } from "./Icons.jsx";
 
@@ -29,7 +30,10 @@ export function ProductCard({ product: p }) {
           <h3 className="text-[19px] font-normal leading-snug">{p.name}</h3>
           <p className="text-[13.5px] tracking-wide tabular-nums">{formatPrice(p.price)}</p>
           <div className="mt-1.5 flex gap-1.5">
-            {p.colors.map((k) => <i key={k} title={COLORS[k].n} className="h-[11px] w-[11px] rounded-full border border-line-strong" style={{ background: COLORS[k].h }} />)}
+            {p.colors.map((slug) => {
+              const meta = getProductColorMeta(p, slug);
+              return <i key={slug} title={meta.name} className="h-[11px] w-[11px] rounded-full border border-line-strong" style={{ background: meta.hex }} />;
+            })}
           </div>
         </div>
       </Link>
@@ -44,7 +48,7 @@ export const ProductGrid = ({ children }) => (
 
 const PERKS = [
   { Icon: IconBox, t: "Livraison discrète", d: "Colis neutre, sans logo ni mention du contenu. 24 à 72 h au Bénin." },
-  { Icon: IconLock, t: "Paiement sécurisé", d: "MTN MoMo, Moov Money, carte bancaire ou paiement à la livraison." },
+  { Icon: IconLock, t: "Paiement sécurisé", d: "Paiement à la livraison pour la V1, avec activation progressive des moyens en ligne." },
   { Icon: IconReturn, t: "Retours 14 jours", d: "Pour la lingerie non portée, étiquettes et protège-hygiène intacts." },
   { Icon: IconChat, t: "Conseil privé", d: "Une conseillère vous répond sur WhatsApp, en toute confidentialité." },
 ];

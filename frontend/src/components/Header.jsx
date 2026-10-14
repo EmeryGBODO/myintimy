@@ -1,7 +1,7 @@
 import { Link, NavLink } from "react-router-dom";
 import { useShop } from "../context/shop-context.js";
 import { NAV } from "../data/navigation.js";
-import { IconBag, IconHeart, IconMenu, IconMoon, IconSearch, IconSun } from "./Icons.jsx";
+import { IconBag, IconHeart, IconMenu, IconMoon, IconSearch, IconSun, IconUser } from "./Icons.jsx";
 
 export function ThemeButton({ className = "" }) {
   const { isDark, toggleTheme } = useShop();
@@ -40,6 +40,7 @@ export default function Header() {
             <button className="icon-btn" onClick={() => openPanel("search")} aria-label="Rechercher"><IconSearch /></button>
             <ThemeButton className="hidden sm:grid" />
             <Link to="/favoris" className="icon-btn relative hidden sm:grid" aria-label="Favoris"><IconHeart /><Badge n={favs.length} /></Link>
+            <Link to="/compte" className="icon-btn hidden sm:grid" aria-label="Mon compte"><IconUser /></Link>
             <button className="icon-btn relative" onClick={() => openPanel("cart")} aria-label="Panier"><IconBag /><Badge n={cartCount} /></button>
           </div>
         </div>

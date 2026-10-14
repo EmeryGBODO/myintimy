@@ -1,0 +1,7 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { customerApi } from "../../api/customer.js";
+import { formatPrice } from "../../data/catalog.js";
+
+const labels={confirmed:"Confirmée",preparing:"En préparation",shipped:"Expédiée",delivered:"Livrée",cancelled:"Annulée",pending_payment:"Paiement en attente"};
+export default function AccountOrders(){const [orders,setOrders]=useState([]);const [error,setError]=useState("");useEffect(()=>{customerApi.orders.list().then(setOrders).catch(e=>setError(e?.message||"Impossible de charger les commandes."));},[]);return <div className="grid gap-6"><div><p className="eyebrow">Historique</p><h2 className="mt-2 text-4xl">Vos commandes</h2></div>{error&&<p className="text-danger">{error}</p>}<div className="grid gap-3">{orders.length?orders.map(o=><Link key={o.id} to={`/compte/commandes/${o.reference}`} className="grid gap-3 border border-line p-5 transition-colors hover:bg-surface sm:grid-cols-[1fr_auto_auto] sm:items-center"><div><b className="font-display text-xl font-normal">{o.reference}</b><p className="text-xs text-muted">{new Date(o.created_at).toLocaleDateString("fr-FR")}</p></div><span className="text-sm text-muted">{labels[o.status]||o.status}</span><b className="font-normal tabular-nums">{formatPrice(o.total_xof)}</b></Link>):<p className="border border-line p-8 text-center text-muted">Aucune commande rattachée à ce compte pour le moment.</p>}</div></div>}
