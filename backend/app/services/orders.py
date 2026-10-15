@@ -12,6 +12,7 @@ from app.models.client import CustomerUser
 from app.models.orders import Order, OrderItem, OrderStatusHistory
 from app.repositories.orders import OrderRepository
 from app.schemas.orders import OrderCreateIn
+from app.services.kkiapay import KkiapayGateway
 from app.services.payments import PaymentMethod, PaymentService
 from app.services.shipping import ShippingService
 
@@ -51,11 +52,17 @@ class OrderService:
         raise ApiException(status_code=503, code="ORDER_REFERENCE_UNAVAILABLE", message="Impossible de générer une référence de commande.")
 
     def create(self, data: OrderCreateIn, *, customer: CustomerUser | None = None) -> Order:
-        if data.payment_method != PaymentMethod.CASH_ON_DELIVERY:
+        if data.payment_method not in {PaymentMethod.CASH_ON_DELIVERY, PaymentMethod.MOBILE_MONEY}:
             raise ApiException(
                 status_code=422,
                 code="PAYMENT_METHOD_UNAVAILABLE",
-                message="Ce moyen de paiement n'est pas encore disponible.",
+                message="Ce moyen de paiement n'est pas disponible.",
+            )
+        if data.payment_method == PaymentMethod.MOBILE_MONEY and not KkiapayGateway().is_configured():
+            raise ApiException(
+                status_code=422,
+                code="PAYMENT_METHOD_UNAVAILABLE",
+                message="Le paiement Mobile Money n'est pas encore configuré.",
             )
 
         quantities: dict[UUID, int] = {}
@@ -108,12 +115,15 @@ class OrderService:
             variant.reserved_quantity += quantity
 
         shipping = ShippingService.calculate_fee(city=data.city, subtotal_xof=subtotal)
+        is_mobile_money = data.payment_method == PaymentMethod.MOBILE_MONEY
+        initial_status = OrderStatus.PENDING_PAYMENT if is_mobile_money else OrderStatus.CONFIRMED
+        initial_payment_status = "pending" if is_mobile_money else "cash_on_delivery"
         order = Order(
             reference=self._reference(),
             customer_id=customer.id if customer else None,
-            status=OrderStatus.CONFIRMED,
+            status=initial_status,
             payment_method=data.payment_method,
-            payment_status="cash_on_delivery",
+            payment_status=initial_payment_status,
             customer_name=data.customer_name.strip(),
             customer_phone=data.customer_phone.strip(),
             customer_email=(data.customer_email.strip().lower() if data.customer_email else None),
@@ -127,8 +137,24 @@ class OrderService:
             currency="XOF",
             items=order_items,
         )
-        order.history.append(OrderStatusHistory(from_status=None, to_status=OrderStatus.CONFIRMED, note="Commande créée - paiement à la livraison"))
-        PaymentService(self.db).register_cash_on_delivery(order)
+        if is_mobile_money:
+            order.history.append(
+                OrderStatusHistory(
+                    from_status=None,
+                    to_status=OrderStatus.PENDING_PAYMENT,
+                    note="Commande créée - attente de confirmation Mobile Money",
+                )
+            )
+            PaymentService(self.db).register_mobile_money(order)
+        else:
+            order.history.append(
+                OrderStatusHistory(
+                    from_status=None,
+                    to_status=OrderStatus.CONFIRMED,
+                    note="Commande créée - paiement à la livraison",
+                )
+            )
+            PaymentService(self.db).register_cash_on_delivery(order)
         self.db.add(order)
         try:
             self.db.commit()

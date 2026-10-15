@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     customer_password_reset_minutes: int = 30
     media_root: str = "media"
     max_product_image_bytes: int = 5 * 1024 * 1024
+    kkiapay_public_key: str = ""
+    kkiapay_private_key: str = ""
+    kkiapay_secret_key: str = ""
+    kkiapay_webhook_secret: str = ""
+    kkiapay_sandbox: bool = True
+    payment_session_minutes: int = 15
+    payment_verify_max_attempts: int = 10
+    payment_reconcile_batch_size: int = 100
 
     @property
     def cors_origins(self) -> list[str]:

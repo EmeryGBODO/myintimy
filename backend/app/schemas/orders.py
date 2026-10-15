@@ -22,7 +22,7 @@ class OrderCreateIn(BaseModel):
     area: str = Field(min_length=1, max_length=160)
     address: str = Field(min_length=2, max_length=1000)
     neutral_packaging: bool = True
-    payment_method: Literal["cash_on_delivery"] = "cash_on_delivery"
+    payment_method: Literal["cash_on_delivery", "mobile_money"] = "cash_on_delivery"
     items: list[OrderItemCreateIn] = Field(min_length=1, max_length=50)
 
 
