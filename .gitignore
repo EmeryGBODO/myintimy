@@ -191,6 +191,7 @@ docker-compose.override.yml
 *.tar
 *.tar.gz
 *.tgz
+*.pyc
 
 
 # ---------------------------------------------------------
