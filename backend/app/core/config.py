@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,6 +20,19 @@ class Settings(BaseSettings):
     customer_password_reset_minutes: int = 30
     media_root: str = "media"
     max_product_image_bytes: int = 5 * 1024 * 1024
+
+    # Configuration SMTP & Emails transactionnels
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = Field(default="", validation_alias=AliasChoices("smtp_user", "smtp_username"))
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_timeout: int = 10
+    mail_from_email: str = "contact@myintimy.com"
+    mail_from_name: str = "Myintimy"
+    mail_admin_email: str = "admin@myintimy.com"
+    frontend_url: str = "http://localhost:5173"
 
     @property
     def cors_origins(self) -> list[str]:

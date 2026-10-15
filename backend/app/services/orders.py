@@ -4,6 +4,7 @@ import secrets
 from datetime import datetime, timezone
 from uuid import UUID
 
+import logging
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ApiException
@@ -12,7 +13,10 @@ from app.models.client import CustomerUser
 from app.models.orders import Order, OrderItem, OrderStatusHistory
 from app.repositories.orders import OrderRepository
 from app.schemas.orders import OrderCreateIn
+from app.services.email import EmailService
 from app.services.shipping import ShippingService
+
+logger = logging.getLogger("myintimy.orders")
 
 
 class OrderStatus:
@@ -41,9 +45,10 @@ ALLOWED_TRANSITIONS = {
 
 
 class OrderService:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, email_service: EmailService | None = None) -> None:
         self.db = db
         self.repository = OrderRepository(db)
+        self.email_service = email_service or EmailService()
 
     def _reference(self) -> str:
         date_part = datetime.now(timezone.utc).strftime("%y%m%d")
@@ -137,7 +142,20 @@ class OrderService:
         except Exception:
             self.db.rollback()
             raise
-        return self.get(order.id)
+
+        created_order = self.get(order.id)
+
+        try:
+            if created_order.customer_email:
+                self.email_service.send_order_confirmation(created_order)
+            self.email_service.send_admin_order_notification(created_order)
+        except Exception:
+            logger.exception(
+                "Échec lors de l'envoi des notifications e-mail pour la commande %s",
+                created_order.reference,
+            )
+
+        return created_order
 
     def get(self, order_id: UUID) -> Order:
         order = self.repository.get_by_id(order_id)

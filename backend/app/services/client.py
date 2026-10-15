@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import secrets
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
@@ -14,12 +15,16 @@ from app.core.security import create_customer_access_token, hash_customer_passwo
 from app.models.client import CustomerAddress, CustomerFavorite, CustomerPasswordResetToken, CustomerUser
 from app.repositories.client import CustomerRepository
 from app.schemas.client import CustomerAddressIn, CustomerProfileUpdateIn, CustomerRegisterIn
+from app.services.email import EmailService
+
+logger = logging.getLogger("myintimy.client")
 
 
 class CustomerService:
-    def __init__(self, db: Session) -> None:
+    def __init__(self, db: Session, email_service: EmailService | None = None) -> None:
         self.db = db
         self.repository = CustomerRepository(db)
+        self.email_service = email_service or EmailService()
 
     def register(self, data: CustomerRegisterIn) -> tuple[CustomerUser, str, int]:
         email = data.email.strip().lower()
@@ -68,6 +73,19 @@ class CustomerService:
         )
         self.db.add(token)
         self.db.commit()
+
+        try:
+            self.email_service.send_password_reset(
+                to_email=customer.email,
+                reset_token=raw,
+                customer_name=customer.full_name,
+            )
+        except Exception:
+            logger.exception(
+                "Échec lors de l'envoi de l'e-mail de réinitialisation de mot de passe à %s",
+                customer.email,
+            )
+
         return raw
 
     def reset_password(self, raw_token: str, password: str) -> None:
