@@ -12,6 +12,7 @@ from app.models.client import CustomerUser
 from app.models.orders import Order, OrderItem, OrderStatusHistory
 from app.repositories.orders import OrderRepository
 from app.schemas.orders import OrderCreateIn
+from app.services.payments import PaymentMethod, PaymentService
 from app.services.shipping import ShippingService
 
 
@@ -24,10 +25,6 @@ class OrderStatus:
     CANCELLED = "cancelled"
 
     ALL = {PENDING_PAYMENT, CONFIRMED, PREPARING, SHIPPED, DELIVERED, CANCELLED}
-
-
-class PaymentMethod:
-    CASH_ON_DELIVERY = "cash_on_delivery"
 
 
 ALLOWED_TRANSITIONS = {
@@ -131,6 +128,7 @@ class OrderService:
             items=order_items,
         )
         order.history.append(OrderStatusHistory(from_status=None, to_status=OrderStatus.CONFIRMED, note="Commande créée - paiement à la livraison"))
+        PaymentService(self.db).register_cash_on_delivery(order)
         self.db.add(order)
         try:
             self.db.commit()

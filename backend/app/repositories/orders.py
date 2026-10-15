@@ -32,7 +32,7 @@ class OrderRepository:
         stmt = (
             select(Order)
             .where(Order.reference == reference)
-            .options(selectinload(Order.items), selectinload(Order.history))
+            .options(selectinload(Order.items), selectinload(Order.history), selectinload(Order.payments))
         )
         if for_update:
             stmt = stmt.with_for_update(of=Order)
@@ -42,14 +42,14 @@ class OrderRepository:
         stmt = (
             select(Order)
             .where(Order.id == order_id)
-            .options(selectinload(Order.items), selectinload(Order.history))
+            .options(selectinload(Order.items), selectinload(Order.history), selectinload(Order.payments))
         )
         if for_update:
             stmt = stmt.with_for_update(of=Order)
         return self.db.scalar(stmt)
 
     def list_orders(self, *, q: str | None = None, status: str | None = None, limit: int = 100, offset: int = 0) -> list[Order]:
-        stmt = select(Order).options(selectinload(Order.items)).order_by(Order.created_at.desc())
+        stmt = select(Order).options(selectinload(Order.items), selectinload(Order.payments)).order_by(Order.created_at.desc())
         if q:
             pattern = f"%{q.strip()}%"
             stmt = stmt.where(

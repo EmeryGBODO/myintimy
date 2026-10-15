@@ -44,6 +44,7 @@ class Order(Base):
     customer = relationship("CustomerUser", back_populates="orders")
     items: Mapped[list[OrderItem]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderItem.created_at")
     history: Mapped[list[OrderStatusHistory]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderStatusHistory.created_at")
+    payments = relationship("PaymentTransaction", back_populates="order", cascade="all, delete-orphan", order_by="PaymentTransaction.created_at")
 
 
 class OrderItem(Base):

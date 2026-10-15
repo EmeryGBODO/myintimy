@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.payments import PaymentTransactionOut
+
 
 class OrderItemCreateIn(BaseModel):
     variant_id: UUID
@@ -73,6 +75,7 @@ class OrderOut(BaseModel):
     updated_at: datetime
     items: list[OrderItemOut]
     history: list[OrderStatusHistoryOut]
+    payments: list[PaymentTransactionOut]
 
 
 class AdminOrderStatusUpdateIn(BaseModel):
