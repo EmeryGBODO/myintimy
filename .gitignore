@@ -202,3 +202,4 @@ docker-compose.override.yml
 # backend/migrations/
 # docker-compose.yml
 # *.env.example
+*cpython-313.pyc
