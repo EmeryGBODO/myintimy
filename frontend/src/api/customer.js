@@ -1,51 +1,35 @@
-import { api, apiRequest } from "./client.js";
+import { api, apiRequest, clearCsrfToken } from "./client.js";
 
-const TOKEN_KEY = "myintimy_customer_token";
-
-export function getCustomerToken() {
-  try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
-}
-
-export function setCustomerToken(token) {
-  try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
-  } catch { /* stockage navigateur indisponible */ }
-}
-
-export function customerHeaders() {
-  const token = getCustomerToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-function authOptions(options = {}) {
-  return { ...options, headers: { ...customerHeaders(), ...(options.headers || {}) } };
-}
+try { localStorage.removeItem("myintimy_customer_token"); } catch { /* ancien stockage non disponible */ }
 
 export const customerApi = {
   register: (payload) => api.post("client/auth/register", payload),
   login: (payload) => api.post("client/auth/login", payload),
+  logout: async () => {
+    try { return await api.post("client/auth/logout", null); }
+    finally { clearCsrfToken("customer"); }
+  },
   requestPasswordReset: (email) => api.post("client/auth/password-reset/request", { email }),
   confirmPasswordReset: (token, password) => api.post("client/auth/password-reset/confirm", { token, password }),
-  profile: () => api.get("client/me", authOptions()),
-  updateProfile: (payload) => api.patch("client/me", payload, authOptions()),
+  profile: () => api.get("client/me"),
+  updateProfile: (payload) => api.patch("client/me", payload),
   addresses: {
-    list: () => api.get("client/me/addresses", authOptions()),
-    create: (payload) => api.post("client/me/addresses", payload, authOptions()),
-    update: (id, payload) => api.put(`client/me/addresses/${id}`, payload, authOptions()),
-    remove: (id) => api.delete(`client/me/addresses/${id}`, authOptions()),
+    list: () => api.get("client/me/addresses"),
+    create: (payload) => api.post("client/me/addresses", payload),
+    update: (id, payload) => api.put(`client/me/addresses/${id}`, payload),
+    remove: (id) => api.delete(`client/me/addresses/${id}`),
   },
   favorites: {
-    list: () => api.get("client/me/favorites", authOptions()),
-    add: (identifier) => api.post(`client/me/favorites/${encodeURIComponent(identifier)}`, null, authOptions()),
-    remove: (identifier) => api.delete(`client/me/favorites/${encodeURIComponent(identifier)}`, authOptions()),
+    list: () => api.get("client/me/favorites"),
+    add: (identifier) => api.post(`client/me/favorites/${encodeURIComponent(identifier)}`, null),
+    remove: (identifier) => api.delete(`client/me/favorites/${encodeURIComponent(identifier)}`),
   },
   orders: {
-    list: () => api.get("client/me/orders", authOptions()),
-    get: (reference) => api.get(`client/me/orders/${encodeURIComponent(reference)}`, authOptions()),
+    list: () => api.get("client/me/orders"),
+    get: (reference) => api.get(`client/me/orders/${encodeURIComponent(reference)}`),
   },
 };
 
 export async function customerApiRequest(path, options = {}) {
-  return apiRequest(path, authOptions(options));
+  return apiRequest(path, options);
 }

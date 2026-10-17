@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_customer, get_db
+from app.core.auth_cookies import clear_auth_cookies, set_auth_cookies
 from app.core.config import get_settings
+from app.core.rate_limit import limit_request
 from app.models.client import CustomerUser
 from app.schemas.client import (
     CustomerAddressIn,
@@ -28,21 +30,53 @@ router = APIRouter(prefix="/client", tags=["client"])
 
 
 @router.post("/auth/register", response_model=CustomerTokenOut, status_code=201)
-def register(payload: CustomerRegisterIn, db: Session = Depends(get_db)):
+def register(payload: CustomerRegisterIn, request: Request, response: Response, db: Session = Depends(get_db)):
+    settings = get_settings()
+    limit_request(
+        request,
+        scope="customer-register",
+        discriminator=payload.email,
+        limit=settings.customer_register_max_attempts,
+        window_seconds=settings.customer_register_window_seconds,
+    )
     _, token, expires_in = CustomerService(db).register(payload)
+    set_auth_cookies(response, role="customer", token=token, expires_in=expires_in)
     return CustomerTokenOut(access_token=token, expires_in=expires_in)
 
 
 @router.post("/auth/login", response_model=CustomerTokenOut)
-def login(payload: CustomerLoginIn, db: Session = Depends(get_db)):
+def login(payload: CustomerLoginIn, request: Request, response: Response, db: Session = Depends(get_db)):
+    settings = get_settings()
+    limit_request(
+        request,
+        scope="customer-login",
+        discriminator=payload.email,
+        limit=settings.customer_login_max_attempts,
+        window_seconds=settings.customer_login_window_seconds,
+    )
     _, token, expires_in = CustomerService(db).login(payload.email, payload.password)
+    set_auth_cookies(response, role="customer", token=token, expires_in=expires_in)
     return CustomerTokenOut(access_token=token, expires_in=expires_in)
 
 
+@router.post("/auth/logout", status_code=204)
+def logout(response: Response):
+    clear_auth_cookies(response, role="customer")
+    response.status_code = 204
+    return response
+
+
 @router.post("/auth/password-reset/request", response_model=PasswordResetRequestOut)
-def request_password_reset(payload: PasswordResetRequestIn, db: Session = Depends(get_db)):
-    token = CustomerService(db).request_password_reset(payload.email)
+def request_password_reset(payload: PasswordResetRequestIn, request: Request, db: Session = Depends(get_db)):
     settings = get_settings()
+    limit_request(
+        request,
+        scope="password-reset",
+        discriminator=payload.email,
+        limit=settings.password_reset_max_attempts,
+        window_seconds=settings.password_reset_window_seconds,
+    )
+    token = CustomerService(db).request_password_reset(payload.email)
     expose = settings.app_env in {"development", "test"}
     return PasswordResetRequestOut(
         message="Si un compte correspond à cette adresse, un lien de réinitialisation sera envoyé.",

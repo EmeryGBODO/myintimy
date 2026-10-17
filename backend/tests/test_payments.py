@@ -369,3 +369,47 @@ def test_verification_attempts_are_limited(client, seeded_db):
             service.begin_provider_verification(payment, transaction_id="KKIA-RATE-LIMIT", count_attempt=True)
         assert exc.value.status_code == 429
         assert exc.value.code == "PAYMENT_VERIFICATION_LIMIT"
+
+
+def test_kkiapay_gateway_uses_official_http_contract(monkeypatch):
+    import httpx
+
+    from app.services.kkiapay import KkiapayGateway
+
+    settings = _enable_kkiapay()
+    settings.kkiapay_sandbox = True
+    captured = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "status": "SUCCESS",
+                "amount": 2500,
+                "source": "MOBILE_MONEY",
+                "transactionId": "TX-HTTP-001",
+                "partnerId": "partner-001",
+            }
+
+    def fake_post(url, *, json, headers, timeout):
+        captured["url"] = url
+        captured["json"] = json
+        captured["headers"] = headers
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+
+    result = KkiapayGateway().verify_transaction("TX-HTTP-001")
+
+    assert captured["url"] == "https://api-sandbox.kkiapay.me/api/v1/transactions/status"
+    assert captured["json"] == {"transactionId": "TX-HTTP-001"}
+    assert captured["headers"]["X-API-KEY"] == "public-test"
+    assert captured["headers"]["X-PRIVATE-KEY"] == "private-test"
+    assert captured["headers"]["X-SECRET-KEY"] == "secret-test"
+    assert captured["timeout"] == 10.0
+    assert result.status == "SUCCESS"
+    assert result.amount_xof == 2500
+    assert result.source == "MOBILE_MONEY"

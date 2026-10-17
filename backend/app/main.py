@@ -7,9 +7,11 @@ from fastapi.staticfiles import StaticFiles
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.core.exceptions import register_exception_handlers
+from app.core.http_security import register_http_security
 from app.core.logging import configure_logging, register_request_logging
 
 settings = get_settings()
+settings.validate_security()
 configure_logging()
 
 app = FastAPI(
@@ -23,10 +25,12 @@ app.add_middleware(
     allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Accept", "Authorization", "Content-Type", "X-Request-ID"],
+    allow_headers=["Accept", "Authorization", "Content-Type", "X-Request-ID", "X-CSRF-Token"],
+    expose_headers=["X-Request-ID", "X-CSRF-Token"],
 )
 register_exception_handlers(app)
 register_request_logging(app)
+register_http_security(app)
 app.include_router(api_router, prefix=settings.api_v1_prefix)
 
 media_root = Path(settings.media_root)

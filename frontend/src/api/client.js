@@ -1,9 +1,17 @@
 import { env } from "../config/env.js";
 import { ApiError } from "./errors.js";
 
+const csrfTokens = { admin: "", customer: "" };
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
 function resolveUrl(path) {
   if (/^https?:\/\//i.test(path)) return path;
   return `${env.apiBaseUrl}/${String(path).replace(/^\/+/, "")}`;
+}
+
+function csrfScope(path) {
+  const normalized = String(path).replace(/^\/+/, "");
+  return normalized.startsWith("admin/") ? "admin" : "customer";
 }
 
 async function parseResponse(response) {
@@ -30,16 +38,26 @@ export async function apiRequest(path, { method = "GET", body, headers = {}, tim
   }
   requestHeaders.set("Accept", "application/json");
 
+  const normalizedMethod = method.toUpperCase();
+  const scope = csrfScope(path);
+  if (!SAFE_METHODS.has(normalizedMethod) && csrfTokens[scope]) {
+    requestHeaders.set("X-CSRF-Token", csrfTokens[scope]);
+  }
+
   try {
     const response = await fetch(resolveUrl(path), {
       ...options,
-      method,
+      method: normalizedMethod,
       body: payload,
       headers: requestHeaders,
+      credentials: "include",
       signal: controller.signal,
     });
-    const data = await parseResponse(response);
 
+    const csrfToken = response.headers.get("X-CSRF-Token");
+    if (csrfToken) csrfTokens[scope] = csrfToken;
+
+    const data = await parseResponse(response);
     if (!response.ok) {
       const error = data?.error;
       throw new ApiError(error?.message || `Erreur HTTP ${response.status}`, {
@@ -58,6 +76,10 @@ export async function apiRequest(path, { method = "GET", body, headers = {}, tim
   } finally {
     clearTimeout(timeout);
   }
+}
+
+export function clearCsrfToken(scope) {
+  if (scope in csrfTokens) csrfTokens[scope] = "";
 }
 
 export const api = {

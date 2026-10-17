@@ -1,37 +1,27 @@
-import { api, apiRequest } from "./client.js";
+import { api, apiRequest, clearCsrfToken } from "./client.js";
 import { resolveBackendUrl } from "../config/env.js";
 
-const TOKEN_KEY = "myintimy_admin_token";
-
-export function getAdminToken() {
-  return localStorage.getItem(TOKEN_KEY) || "";
-}
-
-export function setAdminToken(token) {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
-}
-
-function authHeaders(headers = {}) {
-  const token = getAdminToken();
-  return token ? { ...headers, Authorization: `Bearer ${token}` } : headers;
-}
+try { localStorage.removeItem("myintimy_admin_token"); } catch { /* ancien stockage non disponible */ }
 
 function adminGet(path, options = {}) {
-  return api.get(`admin/${path}`, { ...options, headers: authHeaders(options.headers) });
+  return api.get(`admin/${path}`, options);
 }
 function adminPost(path, body, options = {}) {
-  return api.post(`admin/${path}`, body, { ...options, headers: authHeaders(options.headers) });
+  return api.post(`admin/${path}`, body, options);
 }
 function adminPatch(path, body, options = {}) {
-  return api.patch(`admin/${path}`, body, { ...options, headers: authHeaders(options.headers) });
+  return api.patch(`admin/${path}`, body, options);
 }
 function adminDelete(path, options = {}) {
-  return api.delete(`admin/${path}`, { ...options, headers: authHeaders(options.headers) });
+  return api.delete(`admin/${path}`, options);
 }
 
 export const adminApi = {
   login: (email, password) => api.post("admin/auth/login", { email, password }),
+  logout: async () => {
+    try { return await api.post("admin/auth/logout", null); }
+    finally { clearCsrfToken("admin"); }
+  },
   me: () => adminGet("auth/me"),
   dashboard: () => adminGet("dashboard"),
 
@@ -75,7 +65,6 @@ export const adminApi = {
   uploadImage: (productId, formData) => apiRequest(`admin/products/${productId}/images`, {
     method: "POST",
     body: formData,
-    headers: authHeaders(),
   }),
   reorderImages: (productId, imageIds) => adminPatch(`products/${productId}/images/order`, { image_ids: imageIds }),
   updateImage: (id, payload) => adminPatch(`images/${id}`, payload),

@@ -3,12 +3,13 @@ from __future__ import annotations
 import hmac
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header
+from fastapi import APIRouter, Depends, Header, Request
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
 from app.core.config import get_settings
 from app.core.exceptions import ApiException
+from app.core.rate_limit import limit_request
 from app.repositories.orders import OrderRepository
 from app.schemas.orders import OrderOut
 from app.schemas.payments import KkiapayConfigOut, KkiapayVerifyIn, KkiapayWebhookIn
@@ -24,7 +25,15 @@ def kkiapay_config():
 
 
 @router.post("/kkiapay/verify", response_model=OrderOut)
-def verify_kkiapay_payment(payload: KkiapayVerifyIn, db: Session = Depends(get_db)):
+def verify_kkiapay_payment(payload: KkiapayVerifyIn, request: Request, db: Session = Depends(get_db)):
+    settings = get_settings()
+    limit_request(
+        request,
+        scope="payment-verify",
+        discriminator=str(payload.payment_id),
+        limit=settings.payment_verify_ip_max_attempts,
+        window_seconds=settings.payment_verify_ip_window_seconds,
+    )
     service = PaymentService(db)
     payment = service.get_payment_for_update(payload.payment_id)
     if payment.provider != PaymentProvider.KKIAPAY:

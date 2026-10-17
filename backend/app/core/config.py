@@ -1,5 +1,7 @@
 from functools import lru_cache
 
+from typing import Literal
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -28,6 +30,33 @@ class Settings(BaseSettings):
     payment_session_minutes: int = 15
     payment_verify_max_attempts: int = 10
     payment_reconcile_batch_size: int = 100
+    auth_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+    admin_login_max_attempts: int = 5
+    admin_login_window_seconds: int = 600
+    customer_login_max_attempts: int = 8
+    customer_login_window_seconds: int = 600
+    customer_register_max_attempts: int = 5
+    customer_register_window_seconds: int = 3600
+    password_reset_max_attempts: int = 5
+    password_reset_window_seconds: int = 3600
+    payment_verify_ip_max_attempts: int = 20
+    payment_verify_ip_window_seconds: int = 600
+
+    @property
+    def secure_cookies(self) -> bool:
+        return self.app_env.lower() not in {"development", "test"}
+
+    def validate_security(self) -> None:
+        if self.app_env.lower() != "production":
+            return
+        if self.debug:
+            raise RuntimeError("DEBUG doit être désactivé en production.")
+        if self.jwt_secret == "development-only-change-me-before-production" or len(self.jwt_secret) < 32:
+            raise RuntimeError("JWT_SECRET doit être remplacé par un secret fort d'au moins 32 caractères en production.")
+        if not self.cors_origins or any(origin == "*" for origin in self.cors_origins):
+            raise RuntimeError("FRONTEND_ORIGINS doit contenir uniquement les origines exactes autorisées en production.")
+        if self.auth_cookie_samesite == "none" and not self.secure_cookies:
+            raise RuntimeError("SameSite=None nécessite des cookies Secure.")
 
     @property
     def cors_origins(self) -> list[str]:
