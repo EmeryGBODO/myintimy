@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "test:e2e": "playwright test -c e2e/playwright.config.js",
+    "test:e2e:headed": "playwright test -c e2e/playwright.config.js --headed"
   },
   "dependencies": {
     "react": "^18.3.1",
@@ -31,6 +33,7 @@
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "vite": "^5.4.8",
-    "vitest": "^2.1.9"
+    "vitest": "^2.1.9",
+    "@playwright/test": "^1.64.1"
   }
 }

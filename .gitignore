@@ -203,3 +203,4 @@ docker-compose.override.yml
 # docker-compose.yml
 # *.env.example
 *cpython-313.pyc
+backend/.env

@@ -11,3 +11,5 @@ backend/.coverage
 .DS_Store
 .vite/
 coverage/
+playwright-report/
+test-results/
