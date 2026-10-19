@@ -50,30 +50,36 @@ class EmailService:
     def send_email(
         self,
         *,
-        to_email: str,
+        to_email: str | list[str],
         subject: str,
         text_content: str,
         html_content: str | None = None,
     ) -> bool:
         """Envoie un e-mail via SMTP avec gestion des erreurs et journalisation.
 
+        Supporte un destinataire unique ou une liste de destinataires.
         Retourne True si l'envoi a réussi, False sinon. Ne lève jamais d'exception non gérée.
         """
-        to_clean = (to_email or "").strip()
-        if not to_clean or "@" not in to_clean:
+        if isinstance(to_email, list):
+            recipients = [e.strip() for e in to_email if e and "@" in e.strip()]
+        else:
+            import re
+            recipients = [e.strip() for e in re.split(r"[,;\s]+", to_email or "") if e and "@" in e.strip()]
+
+        if not recipients:
             logger.warning(
-                "Destinataire e-mail invalide ou manquant: '%s'. E-mail non envoyé.",
-                to_clean,
-                extra={"to": to_clean, "subject": subject},
+                "Destinataire(s) e-mail invalide(s) ou manquant(s): '%s'. E-mail non envoyé.",
+                to_email,
+                extra={"to": to_email, "subject": subject},
             )
             return False
 
         if not self.settings.smtp_host:
             logger.info(
-                "SMTP_HOST non configuré. Envoi simulé / ignoré pour '%s' (sujet: '%s').",
-                to_clean,
+                "SMTP_HOST non configuré. Envoi simulé / ignoré pour %s (sujet: '%s').",
+                recipients,
                 subject,
-                extra={"to": to_clean, "subject": subject},
+                extra={"to": recipients, "subject": subject},
             )
             return False
 
@@ -81,7 +87,7 @@ class EmailService:
             msg = EmailMessage()
             msg["Subject"] = subject.strip()
             msg["From"] = formataddr((self.settings.mail_from_name, self.settings.mail_from_email))
-            msg["To"] = to_clean
+            msg["To"] = ", ".join(recipients)
             msg.set_content(text_content.strip(), charset="utf-8")
 
             if html_content:
@@ -94,22 +100,22 @@ class EmailService:
                 if self.settings.smtp_user:
                     server.login(self.settings.smtp_user, self.settings.smtp_password)
 
-                server.send_message(msg)
+                server.send_message(msg, to_addrs=recipients)
 
             logger.info(
                 "E-mail envoyé avec succès à %s.",
-                to_clean,
-                extra={"to": to_clean, "subject": subject},
+                ", ".join(recipients),
+                extra={"to": recipients, "subject": subject},
             )
             return True
 
         except Exception as exc:
             logger.exception(
                 "Échec lors de l'envoi de l'e-mail à %s (sujet: %s): %s",
-                to_clean,
+                ", ".join(recipients),
                 subject,
                 str(exc),
-                extra={"to": to_clean, "subject": subject},
+                extra={"to": recipients, "subject": subject},
             )
             return False
 
@@ -383,61 +389,191 @@ L'équipe Myintimy
         )
 
     def send_admin_order_notification(self, order: Order) -> bool:
-        """Envoie une notification par e-mail à l'administrateur lors d'une nouvelle commande."""
-        admin_email = (self.settings.mail_admin_email or "").strip()
-        if not admin_email:
-            logger.info("Aucune adresse MAIL_ADMIN_EMAIL configurée. Notification admin ignorée.")
+        """Envoie une notification par e-mail à l'équipe d'administration lors d'une nouvelle commande."""
+        recipients = self.settings.admin_recipients
+        if not recipients:
+            logger.info("Aucun destinataire administrateur configuré. Notification admin ignorée.")
             return False
+
+        payment_desc = {
+            "cash_on_delivery": "Paiement à la livraison (espèces)",
+            "wave": "Wave Mobile Money",
+            "orange_money": "Orange Money",
+            "mtn_money": "MTN Mobile Money",
+            "card": "Carte bancaire",
+        }.get(order.payment_method, order.payment_method)
+
+        shipping_desc = f"{order.shipping_xof:,} FCFA" if order.shipping_xof > 0 else "Offerte"
+        packaging_desc = "Emballage discret et neutre" if order.neutral_packaging else "Emballage standard Myintimy"
+        admin_order_url = f"{self.settings.frontend_url.rstrip('/')}/#/admin/orders/{order.id}"
 
         subject = f"[Nouvelle commande] {order.reference} — {order.total_xof:,} FCFA ({order.customer_name})"
 
-        items_summary = ", ".join(f"{item.product_name} x{item.quantity}" for item in order.items)
+        items_lines_text = [
+            f"- {item.product_name} (Réf: {item.sku or 'N/A'}) x{item.quantity} — {item.line_total_xof:,} FCFA"
+            for item in order.items
+        ]
+        items_summary_text = "\n".join(items_lines_text)
+
+        items_rows_html = "".join(
+            f"""<tr>
+              <td style="padding:10px 0;border-bottom:1px solid #F2EAEC;">
+                <div style="font-weight:600;color:#16111A;font-size:14px;">{item.product_name}</div>
+                <div style="font-size:12px;color:#94868B;">Réf : {item.sku or 'N/A'}{f' &bull; {item.size_code}' if item.size_code else ''}</div>
+              </td>
+              <td align="right" style="padding:10px 0;border-bottom:1px solid #F2EAEC;color:#6E6268;font-size:13px;">{item.unit_price_xof:,} FCFA</td>
+              <td align="center" style="padding:10px 0;border-bottom:1px solid #F2EAEC;font-weight:600;color:#16111A;font-size:14px;">{item.quantity}</td>
+              <td align="right" style="padding:10px 0;border-bottom:1px solid #F2EAEC;font-weight:bold;color:#16111A;font-size:14px;">{item.line_total_xof:,} FCFA</td>
+            </tr>"""
+            for item in order.items
+        )
 
         text_content = f"""Une nouvelle commande vient d'être enregistrée sur Myintimy.
 
 Référence : {order.reference}
-Montant total : {order.total_xof:,} FCFA
-Moyen de paiement : {order.payment_method} ({order.payment_status})
+Montant total : {order.total_xof:,} FCFA (Sous-total : {order.subtotal_xof:,} FCFA, Livraison : {shipping_desc})
+Mode de règlement : {payment_desc} (Statut : {order.payment_status})
 
 Client : {order.customer_name}
 Téléphone : {order.customer_phone}
 E-mail : {order.customer_email or 'Non renseigné'}
-Adresse : {order.address}, {order.area}, {order.city}
-Emballage discret : {'Oui' if order.neutral_packaging else 'Non'}
+Adresse de livraison : {order.address}, {order.area}, {order.city}
+Conditionnement : {packaging_desc}
 
-Articles :
-{items_summary}
+Articles commandés :
+{items_summary_text}
+
+Consulter la commande dans l'administration :
+{admin_order_url}
 """
 
         html_content = f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{subject}</title>
 </head>
-<body style="margin:0;padding:20px;background-color:#FAF7F5;font-family:'Jost',sans-serif;color:#16111A;">
-  <div style="max-width:600px;margin:0 auto;background-color:#FFFFFF;padding:24px;border-radius:8px;border:1px solid #F2EAEC;">
-    <h2 style="margin:0 0 12px 0;color:#5B2A4E;">Nouvelle commande reçue</h2>
-    <p style="font-size:14px;margin:0 0 16px 0;"><strong>Référence :</strong> {order.reference}</p>
-    <table width="100%" style="font-size:14px;line-height:1.6;margin-bottom:16px;">
-      <tr><td><strong>Client :</strong></td><td>{order.customer_name}</td></tr>
-      <tr><td><strong>Téléphone :</strong></td><td>{order.customer_phone}</td></tr>
-      <tr><td><strong>E-mail :</strong></td><td>{order.customer_email or 'Non renseigné'}</td></tr>
-      <tr><td><strong>Ville / Quartier :</strong></td><td>{order.city} ({order.area})</td></tr>
-      <tr><td><strong>Adresse :</strong></td><td>{order.address}</td></tr>
-      <tr><td><strong>Total :</strong></td><td><strong>{order.total_xof:,} FCFA</strong></td></tr>
-      <tr><td><strong>Règlement :</strong></td><td>{order.payment_method}</td></tr>
-      <tr><td><strong>Emballage discret :</strong></td><td>{'Oui' if order.neutral_packaging else 'Non'}</td></tr>
-    </table>
-    <h4 style="margin:16px 0 8px 0;color:#5B2A4E;">Articles :</h4>
-    <p style="font-size:13px;color:#4A3F45;margin:0;">{items_summary}</p>
-  </div>
+<body style="margin:0;padding:24px 0;background-color:#FAF7F5;font-family:'Jost',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#16111A;">
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" style="max-width:620px;margin:0 auto;background-color:#FFFFFF;border-radius:12px;overflow:hidden;border:1px solid #F2EAEC;box-shadow:0 4px 12px rgba(22,17,26,0.04);">
+    <tr>
+      <td style="padding:24px 32px;background-color:#5B2A4E;color:#FFFFFF;">
+        <span style="font-size:11px;letter-spacing:0.15em;text-transform:uppercase;opacity:0.85;">Back-office Myintimy</span>
+        <h1 style="margin:4px 0 0 0;font-family:'Cormorant Garamond',serif;font-size:24px;color:#FFFFFF;font-weight:600;">
+          Nouvelle commande reçue
+        </h1>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:32px;">
+        <p style="font-size:15px;line-height:1.6;margin:0 0 20px 0;">
+          Une nouvelle commande vient d'être passée sur la boutique en ligne. Voici le récapitulatif pour traitement :
+        </p>
+
+        <!-- Bloc Récapitulatif Clé -->
+        <div style="background-color:#FAF7F5;padding:16px 20px;border-radius:8px;margin-bottom:24px;border:1px solid #F2EAEC;">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size:14px;">
+            <tr>
+              <td style="padding:4px 0;color:#6E6268;">Référence :</td>
+              <td align="right" style="padding:4px 0;font-weight:bold;color:#5B2A4E;">{order.reference}</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 0;color:#6E6268;">Montant total :</td>
+              <td align="right" style="padding:4px 0;font-weight:bold;color:#16111A;font-size:16px;">{order.total_xof:,} FCFA</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 0;color:#6E6268;">Mode de règlement :</td>
+              <td align="right" style="padding:4px 0;color:#16111A;">{payment_desc}</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 0;color:#6E6268;">Statut du règlement :</td>
+              <td align="right" style="padding:4px 0;color:#16111A;">{order.payment_status}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Coordonnées Client & Livraison -->
+        <div style="border:1px solid #F2EAEC;border-radius:8px;padding:16px 20px;margin-bottom:24px;">
+          <h3 style="margin:0 0 12px 0;font-size:14px;text-transform:uppercase;letter-spacing:0.05em;color:#5B2A4E;">Client & Livraison</h3>
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size:13px;line-height:1.6;">
+            <tr>
+              <td style="padding:3px 0;color:#6E6268;width:120px;">Client :</td>
+              <td style="padding:3px 0;color:#16111A;font-weight:600;">{order.customer_name}</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 0;color:#6E6268;">Téléphone :</td>
+              <td style="padding:3px 0;color:#16111A;"><a href="tel:{order.customer_phone}" style="color:#5B2A4E;text-decoration:none;font-weight:600;">{order.customer_phone}</a></td>
+            </tr>
+            <tr>
+              <td style="padding:3px 0;color:#6E6268;">E-mail :</td>
+              <td style="padding:3px 0;color:#16111A;">{order.customer_email or 'Non renseigné'}</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 0;color:#6E6268;">Destination :</td>
+              <td style="padding:3px 0;color:#16111A;">{order.address}, {order.area}, {order.city}</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 0;color:#6E6268;">Emballage :</td>
+              <td style="padding:3px 0;color:#16111A;">{packaging_desc}</td>
+            </tr>
+          </table>
+        </div>
+
+        <!-- Articles commandés -->
+        <h3 style="font-size:14px;text-transform:uppercase;letter-spacing:0.05em;margin:24px 0 12px 0;color:#5B2A4E;border-bottom:2px solid #F2EAEC;padding-bottom:6px;">Détail des articles</h3>
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size:13px;margin-bottom:20px;">
+          <thead>
+            <tr style="border-bottom:1px solid #F2EAEC;color:#6E6268;font-size:12px;text-transform:uppercase;">
+              <th align="left" style="padding:6px 0;">Article</th>
+              <th align="right" style="padding:6px 0;width:90px;">P.U.</th>
+              <th align="center" style="padding:6px 0;width:50px;">Qté</th>
+              <th align="right" style="padding:6px 0;width:100px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items_rows_html}
+          </tbody>
+        </table>
+
+        <!-- Totaux -->
+        <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size:13px;margin-bottom:28px;">
+          <tr>
+            <td style="padding:3px 0;color:#6E6268;">Sous-total articles :</td>
+            <td align="right" style="padding:3px 0;">{order.subtotal_xof:,} FCFA</td>
+          </tr>
+          <tr>
+            <td style="padding:3px 0;color:#6E6268;">Frais de livraison :</td>
+            <td align="right" style="padding:3px 0;">{shipping_desc}</td>
+          </tr>
+          <tr style="font-size:15px;font-weight:bold;color:#5B2A4E;">
+            <td style="padding:8px 0;border-top:1px solid #F2EAEC;">Total commande :</td>
+            <td align="right" style="padding:8px 0;border-top:1px solid #F2EAEC;">{order.total_xof:,} FCFA</td>
+          </tr>
+        </table>
+
+        <!-- Bouton CTA vers l'admin -->
+        <div style="text-align:center;margin:32px 0 16px 0;">
+          <a href="{admin_order_url}" style="display:inline-block;background-color:#5B2A4E;color:#FFFFFF;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;letter-spacing:0.02em;">
+            Consulter la commande dans l'administration &rarr;
+          </a>
+        </div>
+        <p style="font-size:12px;color:#94868B;text-align:center;margin:0 0 8px 0;word-break:break-all;">
+          Lien direct : <a href="{admin_order_url}" style="color:#5B2A4E;">{admin_order_url}</a>
+        </p>
+      </td>
+    </tr>
+    <tr>
+      <td style="padding:16px 32px;background-color:#FAF7F5;text-align:center;font-size:12px;color:#94868B;">
+        Notification automatique envoyée à l'équipe Myintimy.
+      </td>
+    </tr>
+  </table>
 </body>
 </html>
 """
 
         return self.send_email(
-            to_email=admin_email,
+            to_email=recipients,
             subject=subject,
             text_content=text_content,
             html_content=html_content,

@@ -130,6 +130,30 @@ def test_send_email_ssl_success():
         mock_server.login.assert_called_once_with("ssl_user", "ssl_password")
 
 
+def test_send_email_multi_recipients_envelope(email_settings):
+    """Vérifie que send_email avec une liste de destinataires peuple bien msg['To'] et passe to_addrs à SMTP."""
+    service = EmailService(settings=email_settings)
+
+    with patch("smtplib.SMTP") as mock_smtp_cls:
+        mock_server = MagicMock()
+        mock_smtp_cls.return_value.__enter__.return_value = mock_server
+
+        recipients = ["admin1@myintimy.com", "admin2@myintimy.com"]
+        sent = service.send_email(
+            to_email=recipients,
+            subject="Alerte multi-admins",
+            text_content="Alerte.",
+        )
+
+        assert sent is True
+        mock_server.send_message.assert_called_once()
+        msg = mock_server.send_message.call_args[0][0]
+        call_kwargs = mock_server.send_message.call_args[1]
+
+        assert msg["To"] == "admin1@myintimy.com, admin2@myintimy.com"
+        assert call_kwargs["to_addrs"] == ["admin1@myintimy.com", "admin2@myintimy.com"]
+
+
 def test_send_email_smtp_failure_is_logged_and_returns_false(email_settings, caplog):
     """Vérifie qu'une panne SMTP est proprement journalisée et ne fait pas planter l'application."""
     service = EmailService(settings=email_settings)
@@ -243,7 +267,7 @@ def test_order_confirmation_email_skips_when_no_customer_email(email_settings, s
 
 
 def test_admin_order_notification_email(email_settings, sample_order):
-    """Vérifie la notification administrateur lors d'une nouvelle commande."""
+    """Vérifie la notification administrateur : destinataire, référence, client, total, paiement, articles et lien back-office."""
     service = EmailService(settings=email_settings)
 
     with patch.object(service, "send_email", return_value=True) as mock_send:
@@ -252,11 +276,76 @@ def test_admin_order_notification_email(email_settings, sample_order):
         assert sent is True
         mock_send.assert_called_once()
         kwargs = mock_send.call_args[1]
-        assert kwargs["to_email"] == "commandes@myintimy.com"
+
+        # 1. Destinataires (Critères 1 & 4)
+        assert kwargs["to_email"] == ["commandes@myintimy.com"]
+
+        # 2. Objet
         assert "Nouvelle commande" in kwargs["subject"]
         assert "MYI-261015-ABC" in kwargs["subject"]
+        assert "36,500 FCFA" in kwargs["subject"]
+        assert "Fatou Traoré" in kwargs["subject"]
+
+        # 3. Référence, client, montant total et paiement (Critère 2)
+        assert "MYI-261015-ABC" in kwargs["text_content"]
         assert "Fatou Traoré" in kwargs["text_content"]
         assert "+22901020304" in kwargs["text_content"]
+        assert "fatou@example.com" in kwargs["text_content"]
+        assert "Rue 340, Immeuble Rose, Haie Vive, Cotonou" in kwargs["text_content"]
+        assert "36,500 FCFA" in kwargs["text_content"]
+        assert "Paiement à la livraison" in kwargs["text_content"]
+
+        # 4. Articles commandés
+        assert "Ensemble Soie Rouge" in kwargs["text_content"]
+        assert "x2" in kwargs["text_content"]
+        assert "35,000 FCFA" in kwargs["text_content"]
+
+        # 5. Lien direct vers le détail dans l'administration (Critère 3)
+        expected_admin_url = f"http://localhost:5173/#/admin/orders/{sample_order.id}"
+        assert expected_admin_url in kwargs["text_content"]
+        assert expected_admin_url in kwargs["html_content"]
+
+        # 6. Absence totale de secrets ou tokens sensibles (Critère 6)
+        full_email = kwargs["subject"] + kwargs["text_content"] + kwargs["html_content"]
+        assert "password" not in full_email.lower()
+        assert "token" not in full_email.lower()
+        assert "jwt" not in full_email.lower()
+
+
+def test_admin_order_notification_multiple_recipients(sample_order):
+    """Critère 4 : Plusieurs administrateurs peuvent être configurés via des séparateurs multiples (, ; espaces)."""
+    multi_settings = Settings(
+        smtp_host="smtp.mailtrap.io",
+        mail_admin_email="admin1@myintimy.com, admin2@myintimy.com; direction@myintimy.com ops@myintimy.com",
+    )
+    service = EmailService(settings=multi_settings)
+
+    with patch.object(service, "send_email", return_value=True) as mock_send:
+        sent = service.send_admin_order_notification(sample_order)
+
+        assert sent is True
+        mock_send.assert_called_once()
+        kwargs = mock_send.call_args[1]
+        assert kwargs["to_email"] == [
+            "admin1@myintimy.com",
+            "admin2@myintimy.com",
+            "direction@myintimy.com",
+            "ops@myintimy.com",
+        ]
+
+
+def test_admin_order_notification_skips_when_no_recipients(sample_order):
+    """Critère 1 : Si aucun administrateur n'est configuré, l'envoi est ignoré sans erreur."""
+    no_admin_settings = Settings(
+        smtp_host="smtp.mailtrap.io",
+        mail_admin_email="",
+    )
+    service = EmailService(settings=no_admin_settings)
+
+    with patch.object(service, "send_email") as mock_send:
+        sent = service.send_admin_order_notification(sample_order)
+        assert sent is False
+        mock_send.assert_not_called()
 
 
 # =============================================================================

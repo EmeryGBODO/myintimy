@@ -31,8 +31,25 @@ class Settings(BaseSettings):
     smtp_timeout: int = 10
     mail_from_email: str = "contact@myintimy.com"
     mail_from_name: str = "Myintimy"
-    mail_admin_email: str = "admin@myintimy.com"
+    mail_admin_email: str = Field(
+        default="admin@myintimy.com",
+        validation_alias=AliasChoices(
+            "mail_admin_email",
+            "admin_notification_emails",
+            "admin_notification_email",
+            "admin_emails",
+        ),
+    )
     frontend_url: str = "http://localhost:5173"
+
+    @property
+    def admin_recipients(self) -> list[str]:
+        """Retourne la liste des adresses e-mail des administrateurs configurés."""
+        if not self.mail_admin_email:
+            return []
+        import re
+        raw = re.split(r"[,;\s]+", self.mail_admin_email.strip())
+        return [email.strip() for email in raw if email and "@" in email]
 
     @property
     def cors_origins(self) -> list[str]:
