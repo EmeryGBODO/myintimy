@@ -13,6 +13,19 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("myintimy.email")
 
+ORDER_STATUS_LABELS: dict[str, str] = {
+    "pending_payment": "En attente de paiement",
+    "confirmed": "Confirmée",
+    "preparing": "En cours de préparation",
+    "shipped": "Expédiée",
+    "delivered": "Livrée",
+    "cancelled": "Annulée",
+}
+
+PAYMENT_METHOD_LABELS: dict[str, str] = {
+    "cash_on_delivery": "Paiement à la livraison",
+}
+
 
 class EmailService:
     """Service centralisé d'envoi d'e-mails transactionnels pour Myintimy."""
@@ -191,7 +204,7 @@ L'équipe Myintimy
         )
 
     def send_order_confirmation(self, order: Order) -> bool:
-        """Envoie l'e-mail de confirmation de commande au client."""
+        """Envoie l'e-mail de confirmation de commande au client avec récapitulatif complet."""
         if not order.customer_email:
             logger.info(
                 "Aucune adresse e-mail client pour la commande %s. E-mail de confirmation ignoré.",
@@ -201,6 +214,8 @@ L'équipe Myintimy
 
         subject = f"Confirmation de votre commande {order.reference} — Myintimy"
         frontend_url = self.settings.frontend_url.rstrip("/")
+        status_label = ORDER_STATUS_LABELS.get(order.status, order.status)
+        payment_desc = PAYMENT_METHOD_LABELS.get(order.payment_method, order.payment_method)
 
         # Construction de la liste des articles
         items_text_lines = []
@@ -209,7 +224,7 @@ L'équipe Myintimy
         for item in order.items:
             variant_desc = f"{item.color_name}" + (f" - T. {item.size_code}" if item.size_code else "")
             items_text_lines.append(
-                f"- {item.product_name} ({variant_desc}) x{item.quantity} : {item.line_total_xof:,} FCFA"
+                f"- {item.product_name} ({variant_desc}) x{item.quantity} : {item.line_total_xof:,} FCFA (P.U. : {item.unit_price_xof:,} FCFA)"
             )
             items_html_rows.append(f"""
               <tr style="border-bottom:1px solid #F2EAEC;">
@@ -217,8 +232,9 @@ L'équipe Myintimy
                   <strong>{item.product_name}</strong><br>
                   <span style="font-size:12px;color:#6E6268;">{variant_desc}</span>
                 </td>
+                <td style="padding:12px 8px;font-size:14px;text-align:right;white-space:nowrap;color:#6E6268;">{item.unit_price_xof:,} FCFA</td>
                 <td style="padding:12px 8px;font-size:14px;text-align:center;">{item.quantity}</td>
-                <td style="padding:12px 8px;font-size:14px;text-align:right;white-space:nowrap;">{item.line_total_xof:,} FCFA</td>
+                <td style="padding:12px 8px;font-size:14px;text-align:right;white-space:nowrap;font-weight:600;">{item.line_total_xof:,} FCFA</td>
               </tr>
             """)
 
@@ -230,23 +246,27 @@ L'équipe Myintimy
         text_content = f"""Bonjour {order.customer_name},
 
 Nous vous remercions pour votre commande sur Myintimy !
-Votre commande référence {order.reference} a bien été enregistrée et nous la préparons avec le plus grand soin.
+Votre commande référence {order.reference} a bien été enregistrée.
 
-DÉTAIL DE VOTRE COMMANDE :
+RÉSUMÉ DE VOTRE COMMANDE :
+--------------------------------------------------
+Référence de commande : {order.reference}
+Statut initial : {status_label}
+Mode de règlement : {payment_desc}
+--------------------------------------------------
+
+ARTICLES COMMANDÉS :
 --------------------------------------------------
 {items_text}
 --------------------------------------------------
 Sous-total : {order.subtotal_xof:,} FCFA
 Frais de livraison : {shipping_desc}
-TOTAL : {order.total_xof:,} FCFA
-
-MODE DE RÈGLEMENT :
-Paiement à la livraison
+TOTAL TTC : {order.total_xof:,} FCFA
 
 ADRESSE DE LIVRAISON :
-{order.address}
-{order.area}, {order.city}
-Téléphone : {order.customer_phone}
+Destinataire : {order.customer_name} ({order.customer_phone})
+Adresse : {order.address}
+Quartier / Ville : {order.area}, {order.city}
 Conditionnement : {packaging_desc}
 
 Une question concernant votre commande ? Répondez directement à cet e-mail.
@@ -273,16 +293,39 @@ L'équipe Myintimy
       <td style="padding:32px;">
         <h2 style="margin:0 0 8px 0;font-family:'Cormorant Garamond',serif;font-size:22px;color:#5B2A4E;">Merci pour votre confiance, {order.customer_name} !</h2>
         <p style="font-size:15px;line-height:1.6;margin:0 0 20px 0;">
-          Votre commande <strong>{order.reference}</strong> a bien été enregistrée et est en cours de préparation.
+          Votre commande <strong>{order.reference}</strong> a bien été enregistrée et nous préparons votre colis avec le plus grand soin.
         </p>
+
+        <!-- Bloc Récapitulatif Clé (Référence, Statut initial, Mode de règlement) -->
+        <div style="background-color:#FAF7F5;padding:16px;border-radius:8px;margin-bottom:24px;border:1px solid #F2EAEC;">
+          <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size:14px;">
+            <tr>
+              <td style="padding:4px 0;color:#6E6268;">Référence :</td>
+              <td align="right" style="padding:4px 0;font-weight:bold;color:#16111A;">{order.reference}</td>
+            </tr>
+            <tr>
+              <td style="padding:4px 0;color:#6E6268;">Statut initial :</td>
+              <td align="right" style="padding:4px 0;">
+                <span style="display:inline-block;background-color:#5B2A4E;color:#FFFFFF;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:600;">
+                  {status_label}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:4px 0;color:#6E6268;">Mode de règlement :</td>
+              <td align="right" style="padding:4px 0;color:#16111A;">{payment_desc}</td>
+            </tr>
+          </table>
+        </div>
 
         <h3 style="font-size:16px;margin:24px 0 12px 0;color:#5B2A4E;border-bottom:2px solid #F2EAEC;padding-bottom:6px;">Articles commandés</h3>
         <table width="100%" border="0" cellspacing="0" cellpadding="0" style="margin-bottom:16px;">
           <thead>
             <tr style="border-bottom:2px solid #F2EAEC;font-size:12px;color:#6E6268;text-transform:uppercase;">
               <th align="left" style="padding:8px;">Article</th>
+              <th align="right" style="padding:8px;">P.U.</th>
               <th align="center" style="padding:8px;">Qté</th>
-              <th align="right" style="padding:8px;">Montant</th>
+              <th align="right" style="padding:8px;">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -290,6 +333,7 @@ L'équipe Myintimy
           </tbody>
         </table>
 
+        <!-- Totaux (Sous-total, Livraison, Total TTC) -->
         <table width="100%" border="0" cellspacing="0" cellpadding="0" style="font-size:14px;margin-bottom:24px;">
           <tr>
             <td style="padding:4px 0;color:#6E6268;">Sous-total :</td>
@@ -300,17 +344,18 @@ L'équipe Myintimy
             <td align="right" style="padding:4px 0;">{shipping_desc}</td>
           </tr>
           <tr style="font-size:16px;font-weight:bold;color:#5B2A4E;">
-            <td style="padding:8px 0;border-top:1px solid #F2EAEC;">Total :</td>
+            <td style="padding:8px 0;border-top:1px solid #F2EAEC;">Total TTC :</td>
             <td align="right" style="padding:8px 0;border-top:1px solid #F2EAEC;">{order.total_xof:,} FCFA</td>
           </tr>
         </table>
 
+        <!-- Adresse et livraison -->
         <div style="background-color:#FAF7F5;padding:16px;border-radius:8px;margin-bottom:24px;">
           <h4 style="margin:0 0 8px 0;font-size:14px;color:#5B2A4E;">Informations de livraison</h4>
           <p style="margin:0;font-size:13px;line-height:1.6;">
             <strong>Destinataire :</strong> {order.customer_name} ({order.customer_phone})<br>
             <strong>Adresse :</strong> {order.address}, {order.area}, {order.city}<br>
-            <strong>Règlement :</strong> Paiement à la livraison<br>
+            <strong>Mode de règlement :</strong> {payment_desc}<br>
             <strong>Conditionnement :</strong> {packaging_desc}
           </p>
         </div>

@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+from unittest.mock import patch
 from uuid import UUID
 
 from app.core.security import hash_password
@@ -146,3 +145,70 @@ def test_cancelling_order_releases_reservation(client, seeded_db):
         db_variant = db.get(ProductVariant, UUID(variant["id"]))
         assert db_variant.stock_quantity == 12
         assert db_variant.reserved_quantity == 0
+
+
+def test_order_creation_triggers_confirmation_email_and_admin_notification(client, seeded_db):
+    """Vérifie que la création d'une commande déclenche la confirmation client et l'alerte admin."""
+    variant = _variant(client)
+    payload = _payload(variant["id"], quantity=2)
+    payload["customer_email"] = "awa.mensah@example.com"
+
+    with patch("app.services.orders.EmailService.send_order_confirmation") as mock_client_mail, \
+         patch("app.services.orders.EmailService.send_admin_order_notification") as mock_admin_mail:
+
+        response = client.post("/api/v1/orders", json=payload)
+        assert response.status_code == 201
+        data = response.json()
+
+        # 1. Vérification que l'e-mail client a été déclenché avec la commande créée
+        mock_client_mail.assert_called_once()
+        order_arg = mock_client_mail.call_args[0][0]
+        assert order_arg.reference == data["reference"]
+        assert order_arg.status == "confirmed"
+        assert order_arg.customer_email == "awa.mensah@example.com"
+        assert len(order_arg.items) == 1
+        assert order_arg.items[0].quantity == 2
+
+        # 2. Vérification que l'e-mail admin a également été déclenché
+        mock_admin_mail.assert_called_once()
+
+
+def test_order_creation_without_email_skips_customer_confirmation_gracefully(client, seeded_db):
+    """Vérifie qu'une commande passée sans adresse e-mail est créée sans erreur et ne déclenche que l'alerte admin."""
+    variant = _variant(client)
+    payload = _payload(variant["id"], quantity=1)
+    payload["customer_email"] = None
+
+    with patch("app.services.orders.EmailService.send_order_confirmation") as mock_client_mail, \
+         patch("app.services.orders.EmailService.send_admin_order_notification") as mock_admin_mail:
+
+        response = client.post("/api/v1/orders", json=payload)
+        assert response.status_code == 201
+
+        mock_client_mail.assert_not_called()
+        mock_admin_mail.assert_called_once()
+
+
+def test_order_creation_persists_and_is_not_cancelled_if_email_fails(client, seeded_db):
+    """Critère 6 : L'échec d'envoi de l'e-mail (exception levée) ne supprime ni n'annule la commande créée."""
+    variant = _variant(client)
+    payload = _payload(variant["id"], quantity=1)
+    payload["customer_email"] = "test.failure@example.com"
+
+    with patch("app.services.orders.EmailService.send_order_confirmation", side_effect=RuntimeError("SMTP Server Down")), \
+         patch("app.services.orders.EmailService.send_admin_order_notification", side_effect=RuntimeError("Admin Mail Down")):
+
+        response = client.post("/api/v1/orders", json=payload)
+        assert response.status_code == 201
+        order_data = response.json()
+        assert order_data["status"] == "confirmed"
+
+        # Vérification en base : la commande existe bien et n'a pas été supprimée/annulée
+        with SessionLocal() as db:
+            db_order = db.query(Order).filter(Order.reference == order_data["reference"]).one_or_none()
+            assert db_order is not None
+            assert db_order.status == "confirmed"
+            # La réservation de stock est bien active
+            db_variant = db.get(ProductVariant, UUID(variant["id"]))
+            assert db_variant.reserved_quantity >= 1
+

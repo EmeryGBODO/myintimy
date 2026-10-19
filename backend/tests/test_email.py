@@ -192,7 +192,7 @@ def test_password_reset_email(email_settings):
 
 
 def test_order_confirmation_email(email_settings, sample_order):
-    """Vérifie le contenu de la confirmation de commande adressée au client."""
+    """Vérifie l'exhaustivité du contenu de la confirmation de commande adressée au client."""
     service = EmailService(settings=email_settings)
 
     with patch.object(service, "send_email", return_value=True) as mock_send:
@@ -201,12 +201,34 @@ def test_order_confirmation_email(email_settings, sample_order):
         assert sent is True
         mock_send.assert_called_once()
         kwargs = mock_send.call_args[1]
+
+        # 1. Destinataire et objet
         assert kwargs["to_email"] == "fatou@example.com"
         assert "MYI-261015-ABC" in kwargs["subject"]
+
+        # 2. Référence et statut initial (Critères 1 & 5)
+        assert "MYI-261015-ABC" in kwargs["text_content"]
+        assert "Confirmée" in kwargs["text_content"]
+        assert "Confirmée" in kwargs["html_content"]
+
+        # 3. Articles, quantités et montants (Critère 2)
         assert "Ensemble Soie Rouge" in kwargs["text_content"]
+        assert "x2" in kwargs["text_content"]
+        assert "17,500 FCFA" in kwargs["text_content"]
+        assert "35,000 FCFA" in kwargs["text_content"]
+
+        # 4. Sous-total, frais de livraison et total TTC (Critère 3)
+        assert "35,000 FCFA" in kwargs["text_content"]
+        assert "1,500 FCFA" in kwargs["text_content"]
         assert "36,500 FCFA" in kwargs["text_content"]
-        assert "Haie Vive" in kwargs["text_content"]
+
+        # 5. Mode de paiement et adresse de livraison (Critère 4)
         assert "Paiement à la livraison" in kwargs["text_content"]
+        assert "Rue 340" in kwargs["text_content"]
+        assert "Haie Vive" in kwargs["text_content"]
+        assert "Cotonou" in kwargs["text_content"]
+        assert "+22901020304" in kwargs["text_content"]
+        assert "Emballage discret et neutre" in kwargs["text_content"]
 
 
 def test_order_confirmation_email_skips_when_no_customer_email(email_settings, sample_order):
