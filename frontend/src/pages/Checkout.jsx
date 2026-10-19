@@ -9,6 +9,7 @@ import { ordersApi } from "../api/orders.js";
 import { useShop } from "../context/shop-context.js";
 import { useClient } from "../account/client-context.js";
 import { customerApi } from "../api/customer.js";
+import { shippingApi } from "../api/shipping.js";
 
 const PAYMENTS = [
   ["cash_on_delivery", "Paiement à la livraison", "Le règlement est effectué à la réception du colis."],
@@ -55,6 +56,13 @@ export default function Checkout() {
   const [order, setOrder] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [addresses, setAddresses] = useState([]);
+  const [deliveryZones, setDeliveryZones] = useState([]);
+
+  useEffect(() => {
+    shippingApi.zones().then((items) => {
+      if (Array.isArray(items) && items.length > 0) setDeliveryZones(items);
+    }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!customer) return undefined;
@@ -107,7 +115,12 @@ export default function Checkout() {
     );
   }
 
-  const fee = shippingFee(form.city, subtotal);
+  const matchedZone = deliveryZones.find(
+    (z) => z.name.toLowerCase() === form.city.toLowerCase() || z.code === form.city.toLowerCase(),
+  );
+  const fee = matchedZone
+    ? (matchedZone.free_shipping_threshold_xof !== null && subtotal >= matchedZone.free_shipping_threshold_xof ? 0 : matchedZone.fee_xof)
+    : shippingFee(form.city, subtotal);
   const total = subtotal + fee;
 
   async function submit(event) {
@@ -145,7 +158,11 @@ export default function Checkout() {
       clearCart();
       window.scrollTo(0, 0);
     } catch (err) {
-      if (err?.code === "INSUFFICIENT_STOCK" || err?.code === "VARIANT_UNAVAILABLE") {
+      if (err?.code === "UNKNOWN_DELIVERY_ZONE") {
+        setError("La zone ou ville de livraison sélectionnée n'est pas reconnue ou desservie.");
+      } else if (err?.code === "INACTIVE_DELIVERY_ZONE") {
+        setError("Cette zone de livraison est temporairement indisponible.");
+      } else if (err?.code === "INSUFFICIENT_STOCK" || err?.code === "VARIANT_UNAVAILABLE") {
         setError("Le stock a changé depuis l'ajout au panier. Rechargez la page et vérifiez les quantités disponibles.");
       } else {
         setError(err?.message || "Impossible d'enregistrer la commande pour le moment.");
@@ -175,7 +192,9 @@ export default function Checkout() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid min-w-0 gap-1.5">
                 <label htmlFor="city" className="field-label">Ville</label>
-                <select id="city" className="field" value={form.city} onChange={set("city")}>{CITIES.map((city) => <option key={city}>{city}</option>)}</select>
+                <select id="city" className="field" value={form.city} onChange={set("city")}>
+                  {(deliveryZones.length > 0 ? deliveryZones.map((z) => z.name) : CITIES).map((city) => <option key={city}>{city}</option>)}
+                </select>
               </div>
               <Field id="area" label="Quartier" value={form.area} onChange={set("area")} />
             </div>

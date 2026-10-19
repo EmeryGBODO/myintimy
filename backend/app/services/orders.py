@@ -45,10 +45,16 @@ ALLOWED_TRANSITIONS = {
 
 
 class OrderService:
-    def __init__(self, db: Session, email_service: EmailService | None = None) -> None:
+    def __init__(
+        self,
+        db: Session,
+        email_service: EmailService | None = None,
+        shipping_service: ShippingService | None = None,
+    ) -> None:
         self.db = db
         self.repository = OrderRepository(db)
         self.email_service = email_service or EmailService()
+        self.shipping_service = shipping_service or ShippingService(db)
 
     def _reference(self) -> str:
         date_part = datetime.now(timezone.utc).strftime("%y%m%d")
@@ -115,10 +121,12 @@ class OrderService:
             )
             variant.reserved_quantity += quantity
 
-        shipping = ShippingService.calculate_fee(city=data.city, subtotal_xof=subtotal)
+        zone = self.shipping_service.get_zone(data.city)
+        shipping = self.shipping_service.calculate_fee(city=data.city, subtotal_xof=subtotal)
         order = Order(
             reference=self._reference(),
             customer_id=customer.id if customer else None,
+            delivery_zone_id=zone.id,
             status=OrderStatus.CONFIRMED,
             payment_method=data.payment_method,
             payment_status="cash_on_delivery",

@@ -147,5 +147,8 @@ def seed_catalog(db: Session, *, initial_stock: int = 12) -> dict[str, int]:
             if variant.sku not in expected_skus:
                 variant.is_active = False
 
+    from app.seeds.shipping import seed_delivery_zones
+    seed_delivery_zones(db)
+
     db.commit()
     return counts
