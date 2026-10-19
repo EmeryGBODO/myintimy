@@ -80,6 +80,10 @@ export const adminApi = {
   reorderImages: (productId, imageIds) => adminPatch(`products/${productId}/images/order`, { image_ids: imageIds }),
   updateImage: (id, payload) => adminPatch(`images/${id}`, payload),
   deleteImage: (id) => adminDelete(`images/${id}`),
+
+  shippingZones: () => adminGet("shipping/zones"),
+  createShippingZone: (payload) => adminPost("shipping/zones", payload),
+  updateShippingZone: (id, payload) => adminPatch(`shipping/zones/${id}`, payload),
 };
 
 export const mediaUrl = resolveBackendUrl;
