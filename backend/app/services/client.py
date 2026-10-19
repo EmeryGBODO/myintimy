@@ -89,11 +89,15 @@ class CustomerService:
         return raw
 
     def reset_password(self, raw_token: str, password: str) -> None:
+        if len(password) < 10:
+            raise ApiException(status_code=422, code="PASSWORD_TOO_SHORT", message="Le mot de passe doit contenir au moins 10 caractères.")
         token_hash = hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
         record = self.repository.get_reset_token(token_hash)
         now = datetime.now(UTC)
         if not record or record.used_at is not None:
             raise ApiException(status_code=400, code="INVALID_RESET_TOKEN", message="Ce lien de réinitialisation est invalide ou a déjà été utilisé.")
+        if not record.customer or not record.customer.is_active:
+            raise ApiException(status_code=400, code="CUSTOMER_INACTIVE", message="Ce compte client est inactif ou n'existe plus.")
         expires = record.expires_at
         if expires.tzinfo is None:
             expires = expires.replace(tzinfo=UTC)
@@ -101,6 +105,7 @@ class CustomerService:
             raise ApiException(status_code=400, code="EXPIRED_RESET_TOKEN", message="Ce lien de réinitialisation a expiré.")
         record.customer.password_hash = hash_customer_password(password)
         record.used_at = now
+        self.repository.invalidate_customer_reset_tokens(record.customer_id, except_id=record.id)
         self.db.commit()
 
     def list_addresses(self, customer: CustomerUser) -> list[CustomerAddress]:

@@ -1,4 +1,8 @@
+from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
+
 from app.db.session import SessionLocal
+from app.models.client import CustomerPasswordResetToken
 from app.models.orders import Order
 
 
@@ -85,3 +89,109 @@ def test_authenticated_order_is_attached_and_visible_only_to_owner(client, seede
     with SessionLocal() as db:
         order = db.query(Order).filter(Order.reference == reference).one()
         assert order.customer_id is not None
+
+
+def test_password_reset_email_dispatch_and_security(client):
+    """Vérifie que la demande valide déclenche l'envoi d'e-mail avec le token sans exposer le mot de passe, et que l'API ne révèle pas l'existence d'adresses inexistantes."""
+    register(client, "alice_security@example.com")
+
+    with patch("app.services.client.EmailService.send_password_reset") as mock_send:
+        # 1. Demande valide pour compte existant
+        resp = client.post("/api/v1/client/auth/password-reset/request", json={"email": "alice_security@example.com"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["message"] == "Si un compte correspond à cette adresse, un lien de réinitialisation sera envoyé."
+        token = data["development_token"]
+        assert token
+
+        # Vérification que send_password_reset a été appelé avec les bonnes infos
+        mock_send.assert_called_once()
+        kwargs = mock_send.call_args[1]
+        assert kwargs["to_email"] == "alice_security@example.com"
+        assert kwargs["reset_token"] == token
+        assert kwargs["customer_name"] == "Alice Test"
+        assert "password" not in kwargs
+
+        mock_send.reset_mock()
+
+        # 2. Demande pour une adresse inexistante : ne révèle rien (Critère d'acceptation 5)
+        resp_nonexistent = client.post("/api/v1/client/auth/password-reset/request", json={"email": "inconnu_totale@example.com"})
+        assert resp_nonexistent.status_code == 200
+        assert resp_nonexistent.json()["message"] == "Si un compte correspond à cette adresse, un lien de réinitialisation sera envoyé."
+        # Aucun e-mail n'a été envoyé
+        mock_send.assert_not_called()
+
+
+def test_password_reset_rejects_expired_and_invalid_tokens(client):
+    """Vérifie le rejet des tokens invalides, trop courts, expirés et mots de passe trop courts."""
+    import hashlib
+
+    register(client, "bob_security@example.com")
+    resp = client.post("/api/v1/client/auth/password-reset/request", json={"email": "bob_security@example.com"})
+    token = resp.json()["development_token"]
+
+    # 1. Token invalide (n'existe pas)
+    invalid_resp = client.post("/api/v1/client/auth/password-reset/confirm", json={
+        "token": "token-totalement-invalide-qui-n-existe-pas-12345",
+        "password": "NouveauMotDePasse2026!",
+    })
+    assert invalid_resp.status_code == 400
+    assert invalid_resp.json()["error"]["code"] == "INVALID_RESET_TOKEN"
+
+    # 2. Token trop court pour validation Pydantic (< 20 caractères)
+    short_token_resp = client.post("/api/v1/client/auth/password-reset/confirm", json={
+        "token": "trop-court",
+        "password": "NouveauMotDePasse2026!",
+    })
+    assert short_token_resp.status_code == 422
+
+    # 3. Mot de passe trop court (< 10 caractères)
+    short_pw_resp = client.post("/api/v1/client/auth/password-reset/confirm", json={
+        "token": token,
+        "password": "court",
+    })
+    assert short_pw_resp.status_code == 422
+
+    # 4. Token expiré artificiellement en base
+    token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    with SessionLocal() as db:
+        record = db.query(CustomerPasswordResetToken).filter_by(token_hash=token_hash).one()
+        record.expires_at = datetime.now(UTC) - timedelta(hours=1)
+        db.commit()
+
+    expired_resp = client.post("/api/v1/client/auth/password-reset/confirm", json={
+        "token": token,
+        "password": "NouveauMotDePasse2026!",
+    })
+    assert expired_resp.status_code == 400
+    assert expired_resp.json()["error"]["code"] == "EXPIRED_RESET_TOKEN"
+
+
+def test_password_reset_invalidates_previous_pending_tokens(client):
+    """Vérifie qu'une réinitialisation réussie invalide tous les autres tokens en attente pour le client."""
+    register(client, "claire_security@example.com")
+
+    # Première demande
+    r1 = client.post("/api/v1/client/auth/password-reset/request", json={"email": "claire_security@example.com"})
+    token1 = r1.json()["development_token"]
+
+    # Deuxième demande
+    r2 = client.post("/api/v1/client/auth/password-reset/request", json={"email": "claire_security@example.com"})
+    token2 = r2.json()["development_token"]
+    assert token1 != token2
+
+    # On réinitialise avec le second token
+    confirm = client.post("/api/v1/client/auth/password-reset/confirm", json={
+        "token": token2,
+        "password": "NouveauMotDePasse2026!",
+    })
+    assert confirm.status_code == 204
+
+    # Le premier token doit maintenant être refusé
+    confirm_old = client.post("/api/v1/client/auth/password-reset/confirm", json={
+        "token": token1,
+        "password": "AutreMotDePasse2026!",
+    })
+    assert confirm_old.status_code == 400
+    assert confirm_old.json()["error"]["code"] == "INVALID_RESET_TOKEN"
+

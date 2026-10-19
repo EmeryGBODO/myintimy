@@ -60,6 +60,22 @@ class CustomerRepository:
     def get_reset_token(self, token_hash: str) -> CustomerPasswordResetToken | None:
         return self.db.scalar(select(CustomerPasswordResetToken).where(CustomerPasswordResetToken.token_hash == token_hash))
 
+    def invalidate_customer_reset_tokens(self, customer_id: UUID, *, except_id: UUID | None = None) -> None:
+        stmt = (
+            select(CustomerPasswordResetToken)
+            .where(
+                CustomerPasswordResetToken.customer_id == customer_id,
+                CustomerPasswordResetToken.used_at.is_(None),
+            )
+        )
+        if except_id:
+            stmt = stmt.where(CustomerPasswordResetToken.id != except_id)
+        from datetime import UTC, datetime
+        now = datetime.now(UTC)
+        for token in self.db.scalars(stmt):
+            token.used_at = now
+
+
     def list_orders(self, customer_id: UUID, *, limit: int = 100, offset: int = 0) -> list[Order]:
         stmt = (
             select(Order)
