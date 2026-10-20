@@ -10,17 +10,36 @@ import { useShop } from "../context/shop-context.js";
 import { useClient } from "../account/client-context.js";
 import { customerApi } from "../api/customer.js";
 import { shippingApi } from "../api/shipping.js";
-import { formatApiErrorMessage } from "../api/errors.js";
+import { extractFieldErrors, formatApiErrorMessage } from "../api/errors.js";
+import {
+  validateEmailField,
+  validatePhoneField,
+  validateRequiredField,
+} from "../utils/validation.js";
 
 const PAYMENTS = [
   ["cash_on_delivery", "Paiement à la livraison", "Le règlement est effectué à la réception du colis."],
 ];
 
-function Field({ id, label, ...props }) {
+function Field({ id, label, required = false, error, ...props }) {
   return (
     <div className="grid min-w-0 gap-1.5">
-      <label htmlFor={id} className="field-label">{label}</label>
-      <input id={id} className="field" {...props} />
+      <label htmlFor={id} className="field-label">
+        {label}
+        {required && <span className="ml-1 text-accent" aria-hidden="true">*</span>}
+      </label>
+      <input
+        id={id}
+        className={`field ${error ? "border-danger focus:border-danger" : ""}`}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : undefined}
+        {...props}
+      />
+      {error && (
+        <p id={`${id}-error`} className="text-xs text-danger" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -53,6 +72,7 @@ export default function Checkout() {
     neutral: true,
     pay: "cash_on_delivery",
   });
+  const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState("");
   const [order, setOrder] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -90,10 +110,16 @@ export default function Checkout() {
     return undefined;
   }, [customer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const set = (key) => (event) => setForm((current) => ({
-    ...current,
-    [key]: event.target.type === "checkbox" ? event.target.checked : event.target.value,
-  }));
+  const set = (key) => (event) => {
+    const val = event.target.type === "checkbox" ? event.target.checked : event.target.value;
+    setForm((current) => ({
+      ...current,
+      [key]: val,
+    }));
+    if (fieldErrors[key]) {
+      setFieldErrors((current) => ({ ...current, [key]: null }));
+    }
+  };
 
   const rows = useMemo(() => cart.map((item) => {
     const product = getProduct(item.id);
@@ -143,10 +169,28 @@ export default function Checkout() {
     if (submitting) return;
     setError("");
 
-    if (!form.name.trim() || !form.phone.trim() || !form.area.trim() || !form.address.trim()) {
-      setError("Merci de compléter votre nom, téléphone, quartier et adresse.");
-      return;
+    const errors = {};
+    const nameErr = validateRequiredField(form.name, "Le prénom et nom");
+    if (nameErr) errors.name = nameErr;
+    else if (form.name.trim().length < 2) errors.name = "Le prénom et nom doit comporter au moins 2 caractères.";
+
+    const phoneErr = validatePhoneField(form.phone);
+    if (phoneErr) errors.phone = phoneErr;
+
+    if (form.email.trim()) {
+      const emailErr = validateEmailField(form.email, { required: false });
+      if (emailErr) errors.email = emailErr;
     }
+
+    const areaErr = validateRequiredField(form.area, "Le quartier");
+    if (areaErr) errors.area = areaErr;
+
+    const addrErr = validateRequiredField(form.address, "L'adresse");
+    if (addrErr) errors.address = addrErr;
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     if (source !== "api") {
       setError("Le service de commande est momentanément indisponible. Réessayez lorsque la boutique est reconnectée.");
       return;
@@ -174,6 +218,18 @@ export default function Checkout() {
       clearCart();
       window.scrollTo(0, 0);
     } catch (err) {
+      const backendFieldErrors = extractFieldErrors(err);
+      if (Object.keys(backendFieldErrors).length > 0) {
+        const mapped = {};
+        if (backendFieldErrors.customer_name) mapped.name = backendFieldErrors.customer_name;
+        if (backendFieldErrors.customer_phone) mapped.phone = backendFieldErrors.customer_phone;
+        if (backendFieldErrors.customer_email) mapped.email = backendFieldErrors.customer_email;
+        if (backendFieldErrors.area) mapped.area = backendFieldErrors.area;
+        if (backendFieldErrors.address) mapped.address = backendFieldErrors.address;
+        if (backendFieldErrors.city) mapped.city = backendFieldErrors.city;
+        setFieldErrors(mapped);
+      }
+
       if (err?.code === "UNKNOWN_DELIVERY_ZONE") {
         setError("La zone ou ville de livraison sélectionnée n'est pas reconnue ou desservie.");
       } else if (err?.code === "INACTIVE_DELIVERY_ZONE") {
@@ -196,10 +252,39 @@ export default function Checkout() {
           <fieldset className="m-0 grid gap-4 border-0 p-0">
             <Legend>Vos coordonnées</Legend>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field id="name" label="Prénom et nom" autoComplete="name" value={form.name} onChange={set("name")} disabled={submitting} />
-              <Field id="phone" label="Téléphone" type="tel" placeholder="+229" autoComplete="tel" value={form.phone} onChange={set("phone")} disabled={submitting} />
+              <Field
+                id="name"
+                label="Prénom et nom"
+                required
+                autoComplete="name"
+                value={form.name}
+                onChange={set("name")}
+                disabled={submitting}
+                error={fieldErrors.name}
+              />
+              <Field
+                id="phone"
+                label="Téléphone"
+                required
+                type="tel"
+                placeholder="+229 97 00 00 00"
+                autoComplete="tel"
+                value={form.phone}
+                onChange={set("phone")}
+                disabled={submitting}
+                error={fieldErrors.phone}
+              />
             </div>
-            <Field id="email" label="E-mail (facultatif)" type="email" autoComplete="email" value={form.email} onChange={set("email")} disabled={submitting} />
+            <Field
+              id="email"
+              label="E-mail (facultatif)"
+              type="email"
+              autoComplete="email"
+              value={form.email}
+              onChange={set("email")}
+              disabled={submitting}
+              error={fieldErrors.email}
+            />
           </fieldset>
 
           <fieldset className="m-0 grid gap-4 border-0 p-0">
@@ -223,6 +308,7 @@ export default function Checkout() {
                         area: selected.area,
                         address: selected.address,
                       }));
+                      setFieldErrors({});
                     }
                   }}
                 >
@@ -235,14 +321,32 @@ export default function Checkout() {
             )}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid min-w-0 gap-1.5">
-                <label htmlFor="city" className="field-label">Ville</label>
+                <label htmlFor="city" className="field-label">
+                  Ville <span className="text-accent" aria-hidden="true">*</span>
+                </label>
                 <select id="city" className="field" value={form.city} onChange={set("city")} disabled={submitting}>
                   {(deliveryZones.length > 0 ? deliveryZones.map((z) => z.name) : CITIES).map((city) => <option key={city}>{city}</option>)}
                 </select>
               </div>
-              <Field id="area" label="Quartier" value={form.area} onChange={set("area")} disabled={submitting} />
+              <Field
+                id="area"
+                label="Quartier"
+                required
+                value={form.area}
+                onChange={set("area")}
+                disabled={submitting}
+                error={fieldErrors.area}
+              />
             </div>
-            <Field id="address" label="Adresse ou point de repère" value={form.address} onChange={set("address")} disabled={submitting} />
+            <Field
+              id="address"
+              label="Adresse ou point de repère"
+              required
+              value={form.address}
+              onChange={set("address")}
+              disabled={submitting}
+              error={fieldErrors.address}
+            />
             <label className="flex items-start gap-3 text-sm">
               <input type="checkbox" checked={form.neutral} onChange={set("neutral")} disabled={submitting} className="mt-1 accent-accent" />
               <span>Emballage neutre, sans logo ni description du contenu</span>

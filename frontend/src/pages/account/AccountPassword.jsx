@@ -2,10 +2,12 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { customerApi } from "../../api/customer.js";
 import { PageHead } from "../../components/Shared.jsx";
-import { formatApiErrorMessage } from "../../api/errors.js";
+import { extractFieldErrors, formatApiErrorMessage } from "../../api/errors.js";
+import { validateEmailField, validatePasswordField } from "../../utils/validation.js";
 
 export function ForgotPassword() {
   const [email, setEmail] = useState("");
+  const [fieldError, setFieldError] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [devToken, setDevToken] = useState(null);
@@ -15,14 +17,26 @@ export function ForgotPassword() {
     e.preventDefault();
     if (busy) return;
     setError("");
+
+    const err = validateEmailField(email);
+    if (err) {
+      setFieldError(err);
+      return;
+    }
+    setFieldError("");
+
     setBusy(true);
 
     try {
       const result = await customerApi.requestPasswordReset(email.trim());
       setDevToken(result?.development_token || null);
       setSubmitted(true);
-    } catch (err) {
-      setError(formatApiErrorMessage(err, "Impossible de traiter la demande pour le moment."));
+    } catch (apiErr) {
+      const backendFieldErrors = extractFieldErrors(apiErr);
+      if (backendFieldErrors.email) {
+        setFieldError(backendFieldErrors.email);
+      }
+      setError(formatApiErrorMessage(apiErr, "Impossible de traiter la demande pour le moment."));
     } finally {
       setBusy(false);
     }
@@ -80,19 +94,27 @@ export function ForgotPassword() {
               </div>
             </div>
           ) : (
-            <form onSubmit={submit} className="grid gap-5">
+            <form onSubmit={submit} noValidate className="grid gap-5">
               <label className="grid gap-1.5">
-                <span className="field-label">Adresse e-mail</span>
+                <span className="field-label">
+                  Adresse e-mail <span className="text-accent" aria-hidden="true">*</span>
+                </span>
                 <input
-                  className="field"
+                  className={`field ${fieldError ? "border-danger focus:border-danger" : ""}`}
                   type="email"
                   autoComplete="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (fieldError) setFieldError("");
+                  }}
                   placeholder="votre.email@exemple.com"
                   disabled={busy}
-                  required
+                  aria-invalid={Boolean(fieldError)}
                 />
+                {fieldError && (
+                  <p className="text-xs text-danger" role="alert">{fieldError}</p>
+                )}
               </label>
 
               {error && <p className="text-sm text-danger" role="alert">{error}</p>}
@@ -122,6 +144,7 @@ export function ResetPassword() {
   const token = params.get("token") || (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("token") : "") || "";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -135,20 +158,29 @@ export function ResetPassword() {
       setError("Le jeton de réinitialisation est manquant. Veuillez cliquer sur le lien reçu par e-mail.");
       return;
     }
-    if (password.length < 10) {
-      setError("Le mot de passe doit contenir au moins 10 caractères.");
-      return;
+
+    const errors = {};
+    const passErr = validatePasswordField(password);
+    if (passErr) errors.password = passErr;
+
+    if (!confirm) {
+      errors.confirm = "Veuillez confirmer votre mot de passe.";
+    } else if (password !== confirm) {
+      errors.confirm = "Les mots de passe ne correspondent pas.";
     }
-    if (password !== confirm) {
-      setError("Les mots de passe ne correspondent pas.");
-      return;
-    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
     setBusy(true);
     try {
       await customerApi.confirmPasswordReset(token, password);
       setDone(true);
     } catch (err) {
+      const backendFieldErrors = extractFieldErrors(err);
+      if (Object.keys(backendFieldErrors).length > 0) {
+        setFieldErrors(backendFieldErrors);
+      }
       setError(formatApiErrorMessage(err, "Impossible de réinitialiser le mot de passe. Le lien est peut-être expiré ou déjà utilisé."));
     } finally {
       setBusy(false);
@@ -194,35 +226,49 @@ export function ResetPassword() {
               </Link>
             </div>
           ) : (
-            <form onSubmit={submit} className="grid gap-5">
+            <form onSubmit={submit} noValidate className="grid gap-5">
               <label className="grid gap-1.5">
-                <span className="field-label">Nouveau mot de passe</span>
+                <span className="field-label">
+                  Nouveau mot de passe <span className="text-accent" aria-hidden="true">*</span>
+                </span>
                 <input
-                  className="field"
+                  className={`field ${fieldErrors.password ? "border-danger focus:border-danger" : ""}`}
                   type="password"
                   autoComplete="new-password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (fieldErrors.password) setFieldErrors((c) => ({ ...c, password: null }));
+                  }}
                   placeholder="10 caractères minimum"
-                  minLength={10}
                   disabled={busy}
-                  required
+                  aria-invalid={Boolean(fieldErrors.password)}
                 />
+                {fieldErrors.password && (
+                  <p className="text-xs text-danger" role="alert">{fieldErrors.password}</p>
+                )}
               </label>
 
               <label className="grid gap-1.5">
-                <span className="field-label">Confirmez le nouveau mot de passe</span>
+                <span className="field-label">
+                  Confirmez le nouveau mot de passe <span className="text-accent" aria-hidden="true">*</span>
+                </span>
                 <input
-                  className="field"
+                  className={`field ${fieldErrors.confirm ? "border-danger focus:border-danger" : ""}`}
                   type="password"
                   autoComplete="new-password"
                   value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
+                  onChange={(e) => {
+                    setConfirm(e.target.value);
+                    if (fieldErrors.confirm) setFieldErrors((c) => ({ ...c, confirm: null }));
+                  }}
                   placeholder="Répétez votre mot de passe"
-                  minLength={10}
                   disabled={busy}
-                  required
+                  aria-invalid={Boolean(fieldErrors.confirm)}
                 />
+                {fieldErrors.confirm && (
+                  <p className="text-xs text-danger" role="alert">{fieldErrors.confirm}</p>
+                )}
               </label>
 
               {error && (

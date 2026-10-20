@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "../../api/admin.js";
+import { extractFieldErrors } from "../../api/errors.js";
+import { validatePositiveInt, validateRequiredField } from "../../utils/validation.js";
 import {
   AdminCard,
   AdminEmpty,
@@ -18,6 +20,7 @@ const EMPTY = { title: "", slug: "", subtitle: "", display_order: 0, is_active: 
 export default function AdminCategories() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(EMPTY);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -49,21 +52,34 @@ export default function AdminCategories() {
       display_order: category.display_order,
       is_active: category.is_active,
     });
+    setFieldErrors({});
   }
 
   function reset() {
     setEditing(null);
     setForm(EMPTY);
+    setFieldErrors({});
   }
 
   async function save(event) {
     event.preventDefault();
     if (busy) return;
     setError(null);
+
+    const errors = {};
+    const titleErr = validateRequiredField(form.title, "Le nom de la catégorie");
+    if (titleErr) errors.title = titleErr;
+
+    const orderErr = validatePositiveInt(form.display_order, "L'ordre d'affichage", { required: false });
+    if (orderErr) errors.display_order = orderErr;
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     setBusy(true);
 
     try {
-      const payload = { ...form, display_order: Number(form.display_order) };
+      const payload = { ...form, display_order: Number(form.display_order || 0) };
       if (!payload.slug) delete payload.slug;
 
       if (editing) await adminApi.updateCategory(editing, payload);
@@ -72,6 +88,10 @@ export default function AdminCategories() {
       reset();
       await load();
     } catch (err) {
+      const beErrors = extractFieldErrors(err);
+      if (Object.keys(beErrors).length > 0) {
+        setFieldErrors(beErrors);
+      }
       setError(err);
     } finally {
       setBusy(false);
@@ -105,30 +125,41 @@ export default function AdminCategories() {
             {editing ? "Modifier la catégorie" : "Nouvelle catégorie"}
           </h2>
 
-          <form onSubmit={save} className="space-y-5">
+          <form onSubmit={save} noValidate className="space-y-5">
             <label className="block">
-              <span className="field-label">Nom</span>
+              <span className="field-label">
+                Nom <span className="text-accent" aria-hidden="true">*</span>
+              </span>
               <input
-                className={`${inputClass} mt-1`}
-                required
+                className={`${inputClass} mt-1 ${fieldErrors.title ? "border-danger focus:border-danger" : ""}`}
                 disabled={busy}
                 value={form.title}
-                onChange={(event) => setForm({ ...form, title: event.target.value })}
+                onChange={(event) => {
+                  setForm({ ...form, title: event.target.value });
+                  if (fieldErrors.title) setFieldErrors((c) => ({ ...c, title: null }));
+                }}
+                aria-invalid={Boolean(fieldErrors.title)}
               />
+              {fieldErrors.title && (
+                <p className="mt-1 text-xs text-danger" role="alert">{fieldErrors.title}</p>
+              )}
             </label>
 
             <label className="block">
               <span className="field-label">Slug <span className="normal-case tracking-normal text-muted">(optionnel)</span></span>
               <input
-                className={`${inputClass} mt-1`}
+                className={`${inputClass} mt-1 ${fieldErrors.slug ? "border-danger focus:border-danger" : ""}`}
                 disabled={busy}
                 value={form.slug}
                 onChange={(event) => setForm({ ...form, slug: event.target.value })}
               />
+              {fieldErrors.slug && (
+                <p className="mt-1 text-xs text-danger" role="alert">{fieldErrors.slug}</p>
+              )}
             </label>
 
             <label className="block">
-              <span className="field-label">Sous-titre</span>
+              <span className="field-label">Sous-titre <span className="normal-case tracking-normal text-muted">(optionnel)</span></span>
               <textarea
                 className={`${inputClass} mt-1 resize-y`}
                 rows="3"
@@ -141,12 +172,19 @@ export default function AdminCategories() {
             <label className="block">
               <span className="field-label">Ordre</span>
               <input
-                className={`${inputClass} mt-1`}
+                className={`${inputClass} mt-1 ${fieldErrors.display_order ? "border-danger focus:border-danger" : ""}`}
                 type="number"
+                min="0"
                 disabled={busy}
                 value={form.display_order}
-                onChange={(event) => setForm({ ...form, display_order: event.target.value })}
+                onChange={(event) => {
+                  setForm({ ...form, display_order: event.target.value });
+                  if (fieldErrors.display_order) setFieldErrors((c) => ({ ...c, display_order: null }));
+                }}
               />
+              {fieldErrors.display_order && (
+                <p className="mt-1 text-xs text-danger" role="alert">{fieldErrors.display_order}</p>
+              )}
             </label>
 
             <label className="flex items-center gap-2.5 text-sm text-fg">

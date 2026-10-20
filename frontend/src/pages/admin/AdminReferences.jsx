@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "../../api/admin.js";
+import { extractFieldErrors } from "../../api/errors.js";
+import {
+  validateHexColor,
+  validatePositiveInt,
+  validateRequiredField,
+} from "../../utils/validation.js";
 import {
   AdminCard,
   AdminEmpty,
@@ -15,11 +21,15 @@ import {
 const EMPTY_COLOR = { name: "", slug: "", hex_value: "#000000", display_order: 0, is_active: true };
 const EMPTY_SIZE = { code: "", label: "", display_order: 0, is_active: true };
 
-function Field({ label, children }) {
+function Field({ label, required = false, error, children }) {
   return (
     <label className="block">
-      <span className="field-label">{label}</span>
+      <span className="field-label">
+        {label}
+        {required && <span className="ml-1 text-accent" aria-hidden="true">*</span>}
+      </span>
       {children}
+      {error && <p className="mt-1 text-xs text-danger" role="alert">{error}</p>}
     </label>
   );
 }
@@ -29,6 +39,8 @@ export default function AdminReferences() {
   const [sizes, setSizes] = useState([]);
   const [colorForm, setColorForm] = useState(EMPTY_COLOR);
   const [sizeForm, setSizeForm] = useState(EMPTY_SIZE);
+  const [colorErrors, setColorErrors] = useState({});
+  const [sizeErrors, setSizeErrors] = useState({});
   const [editingColor, setEditingColor] = useState(null);
   const [editingSize, setEditingSize] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,11 +68,13 @@ export default function AdminReferences() {
   function resetColor() {
     setEditingColor(null);
     setColorForm(EMPTY_COLOR);
+    setColorErrors({});
   }
 
   function resetSize() {
     setEditingSize(null);
     setSizeForm(EMPTY_SIZE);
+    setSizeErrors({});
   }
 
   function editColor(color) {
@@ -72,6 +86,7 @@ export default function AdminReferences() {
       display_order: color.display_order,
       is_active: color.is_active,
     });
+    setColorErrors({});
   }
 
   function editSize(size) {
@@ -82,13 +97,28 @@ export default function AdminReferences() {
       display_order: size.display_order,
       is_active: size.is_active,
     });
+    setSizeErrors({});
   }
 
   async function saveColor(event) {
     event.preventDefault();
     if (busy) return;
-    setBusy(true);
     setError(null);
+
+    const errors = {};
+    const nameErr = validateRequiredField(colorForm.name, "Le nom de la couleur");
+    if (nameErr) errors.name = nameErr;
+
+    const hexErr = validateHexColor(colorForm.hex_value);
+    if (hexErr) errors.hex_value = hexErr;
+
+    const orderErr = validatePositiveInt(colorForm.display_order, "L'ordre d'affichage", { required: false });
+    if (orderErr) errors.display_order = orderErr;
+
+    setColorErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setBusy(true);
     try {
       const payload = { ...colorForm, display_order: Number(colorForm.display_order || 0) };
       if (!payload.slug) delete payload.slug;
@@ -97,6 +127,8 @@ export default function AdminReferences() {
       resetColor();
       await load();
     } catch (err) {
+      const beErrors = extractFieldErrors(err);
+      if (Object.keys(beErrors).length > 0) setColorErrors(beErrors);
       setError(err);
     } finally {
       setBusy(false);
@@ -106,8 +138,22 @@ export default function AdminReferences() {
   async function saveSize(event) {
     event.preventDefault();
     if (busy) return;
-    setBusy(true);
     setError(null);
+
+    const errors = {};
+    const codeErr = validateRequiredField(sizeForm.code, "Le code de taille");
+    if (codeErr) errors.code = codeErr;
+
+    const labelErr = validateRequiredField(sizeForm.label, "Le libellé de taille");
+    if (labelErr) errors.label = labelErr;
+
+    const orderErr = validatePositiveInt(sizeForm.display_order, "L'ordre d'affichage", { required: false });
+    if (orderErr) errors.display_order = orderErr;
+
+    setSizeErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setBusy(true);
     try {
       const payload = { ...sizeForm, display_order: Number(sizeForm.display_order || 0) };
       if (editingSize) await adminApi.updateSize(editingSize, payload);
@@ -115,6 +161,8 @@ export default function AdminReferences() {
       resetSize();
       await load();
     } catch (err) {
+      const beErrors = extractFieldErrors(err);
+      if (Object.keys(beErrors).length > 0) setSizeErrors(beErrors);
       setError(err);
     } finally {
       setBusy(false);
@@ -159,28 +207,63 @@ export default function AdminReferences() {
             <h2 className="font-display text-2xl font-light text-fg">Couleurs</h2>
             <p className="mt-1 text-sm text-muted">Le code hexadécimal sert aussi à l’aperçu dans l’administration.</p>
 
-            <form onSubmit={saveColor} className="mt-6 grid gap-4 sm:grid-cols-2">
-              <Field label="Nom">
-                <input required disabled={busy} className={`${inputClass} mt-1`} value={colorForm.name} onChange={(event) => setColorForm({ ...colorForm, name: event.target.value })} />
+            <form onSubmit={saveColor} noValidate className="mt-6 grid gap-4 sm:grid-cols-2">
+              <Field label="Nom" required error={colorErrors.name}>
+                <input
+                  disabled={busy}
+                  className={`${inputClass} mt-1 ${colorErrors.name ? "border-danger focus:border-danger" : ""}`}
+                  value={colorForm.name}
+                  onChange={(event) => {
+                    setColorForm({ ...colorForm, name: event.target.value });
+                    if (colorErrors.name) setColorErrors((c) => ({ ...c, name: null }));
+                  }}
+                />
               </Field>
               <Field label="Slug">
-                <input disabled={busy} className={`${inputClass} mt-1`} placeholder="Automatique si vide" value={colorForm.slug} onChange={(event) => setColorForm({ ...colorForm, slug: event.target.value })} />
+                <input
+                  disabled={busy}
+                  className={`${inputClass} mt-1`}
+                  placeholder="Automatique si vide"
+                  value={colorForm.slug}
+                  onChange={(event) => setColorForm({ ...colorForm, slug: event.target.value })}
+                />
               </Field>
-              <Field label="Couleur">
+              <Field label="Couleur" required error={colorErrors.hex_value}>
                 <div className="mt-1 flex items-center gap-3">
                   <input
                     type="color"
                     disabled={busy}
                     className="h-10 w-12 shrink-0 cursor-pointer border border-line bg-transparent p-1"
                     value={colorForm.hex_value}
-                    onChange={(event) => setColorForm({ ...colorForm, hex_value: event.target.value.toUpperCase() })}
+                    onChange={(event) => {
+                      setColorForm({ ...colorForm, hex_value: event.target.value.toUpperCase() });
+                      if (colorErrors.hex_value) setColorErrors((c) => ({ ...c, hex_value: null }));
+                    }}
                     aria-label="Choisir la couleur"
                   />
-                  <input required pattern="#[0-9A-Fa-f]{6}" disabled={busy} className={inputClass} value={colorForm.hex_value} onChange={(event) => setColorForm({ ...colorForm, hex_value: event.target.value })} />
+                  <input
+                    disabled={busy}
+                    className={`${inputClass} ${colorErrors.hex_value ? "border-danger focus:border-danger" : ""}`}
+                    value={colorForm.hex_value}
+                    onChange={(event) => {
+                      setColorForm({ ...colorForm, hex_value: event.target.value });
+                      if (colorErrors.hex_value) setColorErrors((c) => ({ ...c, hex_value: null }));
+                    }}
+                  />
                 </div>
               </Field>
-              <Field label="Ordre">
-                <input type="number" disabled={busy} className={`${inputClass} mt-1`} value={colorForm.display_order} onChange={(event) => setColorForm({ ...colorForm, display_order: event.target.value })} />
+              <Field label="Ordre" error={colorErrors.display_order}>
+                <input
+                  type="number"
+                  min="0"
+                  disabled={busy}
+                  className={`${inputClass} mt-1 ${colorErrors.display_order ? "border-danger focus:border-danger" : ""}`}
+                  value={colorForm.display_order}
+                  onChange={(event) => {
+                    setColorForm({ ...colorForm, display_order: event.target.value });
+                    if (colorErrors.display_order) setColorErrors((c) => ({ ...c, display_order: null }));
+                  }}
+                />
               </Field>
               <label className="flex items-center gap-2.5 text-sm text-fg sm:col-span-2">
                 <input type="checkbox" disabled={busy} checked={colorForm.is_active} onChange={(event) => setColorForm({ ...colorForm, is_active: event.target.checked })} />
@@ -218,15 +301,42 @@ export default function AdminReferences() {
             <h2 className="font-display text-2xl font-light text-fg">Tailles</h2>
             <p className="mt-1 text-sm text-muted">Le code est utilisé comme identifiant métier, le libellé est affiché au client.</p>
 
-            <form onSubmit={saveSize} className="mt-6 grid gap-4 sm:grid-cols-2">
-              <Field label="Code">
-                <input required disabled={busy} className={`${inputClass} mt-1`} placeholder="M, 40, TU…" value={sizeForm.code} onChange={(event) => setSizeForm({ ...sizeForm, code: event.target.value })} />
+            <form onSubmit={saveSize} noValidate className="mt-6 grid gap-4 sm:grid-cols-2">
+              <Field label="Code" required error={sizeErrors.code}>
+                <input
+                  disabled={busy}
+                  className={`${inputClass} mt-1 ${sizeErrors.code ? "border-danger focus:border-danger" : ""}`}
+                  placeholder="M, 40, TU…"
+                  value={sizeForm.code}
+                  onChange={(event) => {
+                    setSizeForm({ ...sizeForm, code: event.target.value });
+                    if (sizeErrors.code) setSizeErrors((c) => ({ ...c, code: null }));
+                  }}
+                />
               </Field>
-              <Field label="Libellé">
-                <input required disabled={busy} className={`${inputClass} mt-1`} value={sizeForm.label} onChange={(event) => setSizeForm({ ...sizeForm, label: event.target.value })} />
+              <Field label="Libellé" required error={sizeErrors.label}>
+                <input
+                  disabled={busy}
+                  className={`${inputClass} mt-1 ${sizeErrors.label ? "border-danger focus:border-danger" : ""}`}
+                  value={sizeForm.label}
+                  onChange={(event) => {
+                    setSizeForm({ ...sizeForm, label: event.target.value });
+                    if (sizeErrors.label) setSizeErrors((c) => ({ ...c, label: null }));
+                  }}
+                />
               </Field>
-              <Field label="Ordre">
-                <input type="number" disabled={busy} className={`${inputClass} mt-1`} value={sizeForm.display_order} onChange={(event) => setSizeForm({ ...sizeForm, display_order: event.target.value })} />
+              <Field label="Ordre" error={sizeErrors.display_order}>
+                <input
+                  type="number"
+                  min="0"
+                  disabled={busy}
+                  className={`${inputClass} mt-1 ${sizeErrors.display_order ? "border-danger focus:border-danger" : ""}`}
+                  value={sizeForm.display_order}
+                  onChange={(event) => {
+                    setSizeForm({ ...sizeForm, display_order: event.target.value });
+                    if (sizeErrors.display_order) setSizeErrors((c) => ({ ...c, display_order: null }));
+                  }}
+                />
               </Field>
               <label className="flex items-end gap-2.5 pb-2 text-sm text-fg">
                 <input type="checkbox" disabled={busy} checked={sizeForm.is_active} onChange={(event) => setSizeForm({ ...sizeForm, is_active: event.target.checked })} />

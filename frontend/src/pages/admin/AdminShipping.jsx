@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { adminApi } from "../../api/admin.js";
 import { formatXof } from "../../admin/format.js";
+import { extractFieldErrors } from "../../api/errors.js";
+import { validatePositiveInt } from "../../utils/validation.js";
 import {
   AdminCard,
   AdminEmpty,
@@ -23,14 +25,16 @@ const DEFAULT_FORM = {
   display_order: 10,
 };
 
-function Field({ label, hint, children }) {
+function Field({ label, hint, required = false, error, children }) {
   return (
     <label className="block">
       <span className="field-label mb-1.5 block text-xs font-normal uppercase tracking-[.14em] text-muted">
         {label}
+        {required && <span className="ml-1 text-accent" aria-hidden="true">*</span>}
       </span>
       {children}
-      {hint && <span className="mt-1 block text-[11.5px] leading-relaxed text-muted/80">{hint}</span>}
+      {error && <p className="mt-1 text-xs text-danger" role="alert">{error}</p>}
+      {hint && !error && <span className="mt-1 block text-[11.5px] leading-relaxed text-muted/80">{hint}</span>}
     </label>
   );
 }
@@ -43,6 +47,7 @@ export default function AdminShipping() {
   const [success, setSuccess] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(DEFAULT_FORM);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [statusFilter, setStatusFilter] = useState("all");
 
   const load = useCallback(async () => {
@@ -85,6 +90,7 @@ export default function AdminShipping() {
       is_active: zone.is_active,
       display_order: zone.display_order,
     });
+    setFieldErrors({});
     setError(null);
     setSuccess(null);
   }
@@ -92,6 +98,7 @@ export default function AdminShipping() {
   function resetForm() {
     setEditingId(null);
     setForm(DEFAULT_FORM);
+    setFieldErrors({});
     setError(null);
     setSuccess(null);
   }
@@ -120,29 +127,30 @@ export default function AdminShipping() {
     setError(null);
     setSuccess(null);
 
+    const errors = {};
     const name = form.name.trim();
-    if (name.length < 2) {
-      setError(new Error("Le nom de la zone doit comporter au moins 2 caractères."));
-      return;
+    if (!name) {
+      errors.name = "Le nom de la zone est obligatoire.";
+    } else if (name.length < 2) {
+      errors.name = "Le nom de la zone doit comporter au moins 2 caractères.";
     }
 
-    const fee = Number(form.fee_xof);
-    if (Number.isNaN(fee) || fee < 0) {
-      setError(new Error("Le tarif de livraison doit être un montant entier positif ou nul."));
-      return;
-    }
+    const feeErr = validatePositiveInt(form.fee_xof, "Le tarif d'expédition");
+    if (feeErr) errors.fee_xof = feeErr;
 
     let threshold = null;
     if (form.has_free_shipping) {
-      threshold = Number(form.free_shipping_threshold_xof);
-      if (Number.isNaN(threshold) || threshold < 0) {
-        setError(new Error("Le seuil de gratuité doit être un montant positif ou nul."));
-        return;
-      }
+      const threshErr = validatePositiveInt(form.free_shipping_threshold_xof, "Le seuil de gratuité");
+      if (threshErr) errors.free_shipping_threshold_xof = threshErr;
+      else threshold = Number(form.free_shipping_threshold_xof);
     }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
 
     setBusy(true);
     try {
+      const fee = Number(form.fee_xof);
       const payload = {
         name,
         fee_xof: Math.round(fee),
@@ -163,6 +171,10 @@ export default function AdminShipping() {
 
       resetForm();
     } catch (err) {
+      const backendFieldErrors = extractFieldErrors(err);
+      if (Object.keys(backendFieldErrors).length > 0) {
+        setFieldErrors(backendFieldErrors);
+      }
       setError(err);
     } finally {
       setBusy(false);
@@ -398,34 +410,42 @@ export default function AdminShipping() {
               </h3>
             </div>
 
-            <form onSubmit={handleSubmit} className="grid gap-4">
+            <form onSubmit={handleSubmit} noValidate className="grid gap-4">
               <Field
-                label="Nom de la zone ou ville *"
+                label="Nom de la zone ou ville"
+                required
+                error={fieldErrors.name}
                 hint="Ex : Cotonou, Parakou, Abomey-Calavi, Ouidah..."
               >
                 <input
                   type="text"
-                  required
                   placeholder="Nom de la ville ou zone"
                   value={form.name}
-                  onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))}
-                  className={inputClass}
+                  onChange={(e) => {
+                    setForm((c) => ({ ...c, name: e.target.value }));
+                    if (fieldErrors.name) setFieldErrors((c) => ({ ...c, name: null }));
+                  }}
+                  className={`${inputClass} ${fieldErrors.name ? "border-danger focus:border-danger" : ""}`}
                 />
               </Field>
 
               <Field
-                label="Tarif d'expédition (FCFA) *"
+                label="Tarif d'expédition (FCFA)"
+                required
+                error={fieldErrors.fee_xof}
                 hint="Montant standard facturé au client."
               >
                 <input
                   type="number"
-                  required
                   min="0"
                   step="100"
                   placeholder="1500"
                   value={form.fee_xof}
-                  onChange={(e) => setForm((c) => ({ ...c, fee_xof: e.target.value }))}
-                  className={inputClass}
+                  onChange={(e) => {
+                    setForm((c) => ({ ...c, fee_xof: e.target.value }));
+                    if (fieldErrors.fee_xof) setFieldErrors((c) => ({ ...c, fee_xof: null }));
+                  }}
+                  className={`${inputClass} ${fieldErrors.fee_xof ? "border-danger focus:border-danger" : ""}`}
                 />
               </Field>
 
@@ -454,19 +474,25 @@ export default function AdminShipping() {
                   <div className="mt-3.5 border-t border-line/60 pt-3">
                     <Field
                       label="Seuil d'achat minimum (FCFA)"
+                      required
+                      error={fieldErrors.free_shipping_threshold_xof}
                       hint="Gratuit dès que le panier atteint ce total (ex : 50 000 FCFA)."
                     >
                       <input
                         type="number"
                         min="0"
                         step="500"
-                        required={form.has_free_shipping}
                         placeholder="50000"
                         value={form.free_shipping_threshold_xof}
-                        onChange={(e) =>
-                          setForm((c) => ({ ...c, free_shipping_threshold_xof: e.target.value }))
-                        }
-                        className={inputClass}
+                        onChange={(e) => {
+                          setForm((c) => ({ ...c, free_shipping_threshold_xof: e.target.value }));
+                          if (fieldErrors.free_shipping_threshold_xof) {
+                            setFieldErrors((c) => ({ ...c, free_shipping_threshold_xof: null }));
+                          }
+                        }}
+                        className={`${inputClass} ${
+                          fieldErrors.free_shipping_threshold_xof ? "border-danger focus:border-danger" : ""
+                        }`}
                       />
                     </Field>
                   </div>

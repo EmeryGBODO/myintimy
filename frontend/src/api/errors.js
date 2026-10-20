@@ -106,3 +106,40 @@ export function formatApiErrorMessage(error, fallback = "Une erreur inattendue e
 
   return fallback;
 }
+
+/**
+ * Extrait les erreurs par champ à partir d'une erreur API (typiquement validation 422).
+ * Renvoie un objet clé-valeur { [fieldName]: "Message d'erreur" }
+ */
+export function extractFieldErrors(error) {
+  if (!error) return {};
+
+  const details = error.details || error.cause?.details;
+  if (!details) return {};
+
+  const fieldErrors = {};
+
+  if (Array.isArray(details)) {
+    for (const item of details) {
+      if (!item) continue;
+      const loc = Array.isArray(item.loc) ? item.loc : [];
+      const field = loc.length > 0 ? String(loc[loc.length - 1]) : item.field || "";
+      const msg = item.msg || item.message || "Valeur invalide.";
+
+      if (field && !fieldErrors[field]) {
+        fieldErrors[field] = msg;
+      }
+    }
+  } else if (typeof details === "object") {
+    for (const [key, val] of Object.entries(details)) {
+      if (typeof val === "string") {
+        fieldErrors[key] = val;
+      } else if (val && typeof val === "object" && val.msg) {
+        fieldErrors[key] = val.msg;
+      }
+    }
+  }
+
+  return fieldErrors;
+}
+

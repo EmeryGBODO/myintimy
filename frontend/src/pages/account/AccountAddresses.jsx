@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { customerApi } from "../../api/customer.js";
 import { CITIES } from "../../data/catalog.js";
 import { InlineError, InlineLoading } from "../../components/Shared.jsx";
+import { extractFieldErrors } from "../../api/errors.js";
+import { validatePhoneField, validateRequiredField } from "../../utils/validation.js";
 
 const empty = {
   label: "Maison",
@@ -19,6 +21,7 @@ export default function AccountAddresses() {
   const [busy, setBusy] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [form, setForm] = useState(empty);
+  const [fieldErrors, setFieldErrors] = useState({});
   const [editing, setEditing] = useState(null);
   const [error, setError] = useState(null);
 
@@ -50,12 +53,14 @@ export default function AccountAddresses() {
       address: item.address,
       is_default: item.is_default,
     });
+    setFieldErrors({});
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function reset() {
     setEditing(null);
     setForm(empty);
+    setFieldErrors({});
     setError(null);
   }
 
@@ -63,6 +68,23 @@ export default function AccountAddresses() {
     e.preventDefault();
     if (busy) return;
     setError(null);
+
+    const errors = {};
+    const nameErr = validateRequiredField(form.recipient_name, "Le nom du destinataire");
+    if (nameErr) errors.recipient_name = nameErr;
+
+    const phoneErr = validatePhoneField(form.phone);
+    if (phoneErr) errors.phone = phoneErr;
+
+    const areaErr = validateRequiredField(form.area, "Le quartier");
+    if (areaErr) errors.area = areaErr;
+
+    const addrErr = validateRequiredField(form.address, "L'adresse");
+    if (addrErr) errors.address = addrErr;
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     setBusy(true);
 
     try {
@@ -74,6 +96,10 @@ export default function AccountAddresses() {
       reset();
       await load();
     } catch (err) {
+      const backendFieldErrors = extractFieldErrors(err);
+      if (Object.keys(backendFieldErrors).length > 0) {
+        setFieldErrors(backendFieldErrors);
+      }
       setError(err);
     } finally {
       setBusy(false);
@@ -97,8 +123,13 @@ export default function AccountAddresses() {
     }
   }
 
-  const set = (k) => (e) =>
-    setForm({ ...form, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value });
+  const set = (k) => (e) => {
+    const val = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+    setForm({ ...form, [k]: val });
+    if (fieldErrors[k]) {
+      setFieldErrors((current) => ({ ...current, [k]: null }));
+    }
+  };
 
   return (
     <div className="grid gap-8">
@@ -109,41 +140,60 @@ export default function AccountAddresses() {
 
       <InlineError error={error} onRetry={load} />
 
-      <form onSubmit={submit} className="grid gap-4 border border-line bg-surface p-5 sm:p-8">
+      <form onSubmit={submit} noValidate className="grid gap-4 border border-line bg-surface p-5 sm:p-8">
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-1.5">
-            <span className="field-label">Nom de l'adresse</span>
+            <span className="field-label">
+              Nom de l'adresse <span className="normal-case tracking-normal text-muted">(facultatif)</span>
+            </span>
             <input
-              className="field"
+              className={`field ${fieldErrors.label ? "border-danger focus:border-danger" : ""}`}
               value={form.label}
               onChange={set("label")}
               disabled={busy}
               placeholder="Ex: Maison, Bureau…"
+              aria-invalid={Boolean(fieldErrors.label)}
             />
+            {fieldErrors.label && (
+              <p className="text-xs text-danger" role="alert">{fieldErrors.label}</p>
+            )}
           </label>
           <label className="grid gap-1.5">
-            <span className="field-label">Destinataire</span>
+            <span className="field-label">
+              Destinataire <span className="text-accent" aria-hidden="true">*</span>
+            </span>
             <input
-              className="field"
+              className={`field ${fieldErrors.recipient_name ? "border-danger focus:border-danger" : ""}`}
               value={form.recipient_name}
               onChange={set("recipient_name")}
               disabled={busy}
-              required
+              aria-invalid={Boolean(fieldErrors.recipient_name)}
             />
+            {fieldErrors.recipient_name && (
+              <p className="text-xs text-danger" role="alert">{fieldErrors.recipient_name}</p>
+            )}
           </label>
           <label className="grid gap-1.5">
-            <span className="field-label">Téléphone</span>
+            <span className="field-label">
+              Téléphone <span className="text-accent" aria-hidden="true">*</span>
+            </span>
             <input
-              className="field"
+              className={`field ${fieldErrors.phone ? "border-danger focus:border-danger" : ""}`}
               type="tel"
               value={form.phone}
               onChange={set("phone")}
+              placeholder="+229 97 00 00 00"
               disabled={busy}
-              required
+              aria-invalid={Boolean(fieldErrors.phone)}
             />
+            {fieldErrors.phone && (
+              <p className="text-xs text-danger" role="alert">{fieldErrors.phone}</p>
+            )}
           </label>
           <label className="grid gap-1.5">
-            <span className="field-label">Ville</span>
+            <span className="field-label">
+              Ville <span className="text-accent" aria-hidden="true">*</span>
+            </span>
             <select
               className="field"
               value={form.city}
@@ -156,24 +206,34 @@ export default function AccountAddresses() {
             </select>
           </label>
           <label className="grid gap-1.5">
-            <span className="field-label">Quartier</span>
+            <span className="field-label">
+              Quartier <span className="text-accent" aria-hidden="true">*</span>
+            </span>
             <input
-              className="field"
+              className={`field ${fieldErrors.area ? "border-danger focus:border-danger" : ""}`}
               value={form.area}
               onChange={set("area")}
               disabled={busy}
-              required
+              aria-invalid={Boolean(fieldErrors.area)}
             />
+            {fieldErrors.area && (
+              <p className="text-xs text-danger" role="alert">{fieldErrors.area}</p>
+            )}
           </label>
           <label className="grid gap-1.5">
-            <span className="field-label">Adresse / repère</span>
+            <span className="field-label">
+              Adresse / repère <span className="text-accent" aria-hidden="true">*</span>
+            </span>
             <input
-              className="field"
+              className={`field ${fieldErrors.address ? "border-danger focus:border-danger" : ""}`}
               value={form.address}
               onChange={set("address")}
               disabled={busy}
-              required
+              aria-invalid={Boolean(fieldErrors.address)}
             />
+            {fieldErrors.address && (
+              <p className="text-xs text-danger" role="alert">{fieldErrors.address}</p>
+            )}
           </label>
         </div>
 
