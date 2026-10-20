@@ -11,6 +11,11 @@ import Product from "./pages/Product.jsx";
 import Favorites from "./pages/Favorites.jsx";
 import Checkout from "./pages/Checkout.jsx";
 import Delivery from "./pages/Delivery.jsx";
+import Terms from "./pages/Terms.jsx";
+import Privacy from "./pages/Privacy.jsx";
+import Legal from "./pages/Legal.jsx";
+import Returns from "./pages/Returns.jsx";
+import Contact from "./pages/Contact.jsx";
 import NotFound from "./pages/NotFound.jsx";
 import AccountLayout from "./account/AccountLayout.jsx";
 import AccountLogin from "./pages/account/AccountLogin.jsx";
@@ -56,6 +61,11 @@ export default function App() {
           <Route path="/favoris" element={<Favorites />} />
           <Route path="/commande" element={<Checkout />} />
           <Route path="/livraison" element={<Delivery />} />
+          <Route path="/cgv" element={<Terms />} />
+          <Route path="/confidentialite" element={<Privacy />} />
+          <Route path="/mentions-legales" element={<Legal />} />
+          <Route path="/retours" element={<Returns />} />
+          <Route path="/contact" element={<Contact />} />
           <Route path="/compte/connexion" element={<AccountLogin />} />
           <Route path="/compte/inscription" element={<AccountRegister />} />
           <Route path="/compte/mot-de-passe-oublie" element={<ForgotPassword />} />

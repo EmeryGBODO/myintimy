@@ -152,6 +152,12 @@ export default function Checkout() {
         <h1 className="text-[clamp(40px,6vw,76px)]">Votre panier est vide</h1>
         <p className="text-muted">Ajoutez une pièce pour passer commande.</p>
         <Link to="/categorie/nouveautes" className="btn">Voir les nouveautés</Link>
+        <div className="mt-8 flex flex-wrap justify-center gap-4 text-xs text-muted">
+          <Link to="/livraison" className="underline hover:text-fg">Infos livraison</Link>
+          <Link to="/cgv" className="underline hover:text-fg">Conditions Générales de Vente</Link>
+          <Link to="/confidentialite" className="underline hover:text-fg">Politique de Confidentialité</Link>
+          <Link to="/retours" className="underline hover:text-fg">Retours sous 14 jours</Link>
+        </div>
       </section>
     );
   }
@@ -368,6 +374,14 @@ export default function Checkout() {
           <button type="submit" className="btn w-full" disabled={submitting}>
             {submitting ? "Enregistrement…" : `Confirmer · ${formatPrice(total)}`}
           </button>
+          <p className="mt-1 text-center text-[11.5px] leading-relaxed text-muted">
+            En confirmant votre commande, vous acceptez nos{" "}
+            <Link to="/cgv" target="_blank" className="underline hover:text-fg">Conditions Générales de Vente</Link>
+            {" "}et notre{" "}
+            <Link to="/confidentialite" target="_blank" className="underline hover:text-fg">Politique de Confidentialité</Link>.
+            Consultez nos{" "}
+            <Link to="/retours" target="_blank" className="underline hover:text-fg">modalités de retour sous 14 jours</Link>.
+          </p>
         </form>
 
         <aside className="-order-1 grid gap-4 bg-surface p-6 md:sticky md:top-24 md:order-none lg:p-9">
