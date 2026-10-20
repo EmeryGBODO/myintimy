@@ -28,7 +28,7 @@ export function CartDrawer() {
   const left = FREE_SHIPPING - subtotal;
   return (
     <>
-      <div onClick={closePanel} className={`fixed inset-0 z-[60] bg-black/50 transition-opacity duration-500 ${open ? "opacity-100" : "pointer-events-none opacity-0"}`} />
+      <div onClick={closePanel} className={`fixed inset-0 z-[60] bg-plum/60 backdrop-blur-sm transition-opacity duration-500 ${open ? "opacity-100" : "pointer-events-none opacity-0"}`} />
       <aside aria-label="Panier" aria-hidden={!open}
         className={`fixed inset-y-0 right-0 z-[70] grid w-full max-w-[440px] grid-rows-[auto_1fr_auto] border-l border-line bg-bg pb-[env(safe-area-inset-bottom,0px)] pt-[env(safe-area-inset-top,0px)] transition-transform duration-500 ease-lux ${open ? "translate-x-0" : "translate-x-full"}`}>
         <div className="flex items-center justify-between border-b border-line px-6 py-5">
@@ -107,7 +107,7 @@ export function MobileMenu() {
 function Modal({ children, onClose, className = "", align = "center" }) {
   return (
     <div className={`fixed inset-0 z-[90] grid justify-items-center p-4 ${align === "top" ? "items-start pt-[8vh]" : "items-center"}`}>
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-plum/60 backdrop-blur-sm" onClick={onClose} />
       <div className={`relative max-h-[calc(100vh-32px)] w-full overflow-auto border border-line bg-bg p-7 animate-rise sm:p-12 ${className}`}>{children}</div>
     </div>
   );

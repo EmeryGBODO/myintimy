@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { adminApi, getAdminToken, setAdminToken } from "../api/admin.js";
 import { AdminContext } from "./admin-context.js";
 
-export default function AdminProvider({ children }) {
+export function AdminProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(Boolean(getAdminToken()));
 
@@ -26,3 +26,5 @@ export default function AdminProvider({ children }) {
   const value = useMemo(() => ({ user, loading, login, logout, authenticated: Boolean(user) }), [user, loading, login, logout]);
   return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>;
 }
+
+export default AdminProvider;

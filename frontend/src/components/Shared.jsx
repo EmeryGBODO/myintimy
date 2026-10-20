@@ -117,7 +117,7 @@ export function InlineError({ error, onRetry }) {
           <button
             type="button"
             onClick={onRetry}
-            className="btn btn-ghost shrink-0 !border-danger/40 !py-1.5 !text-xs !text-danger hover:!bg-danger hover:!text-white"
+            className="btn btn-ghost shrink-0 !border-danger/40 !py-1.5 !text-xs !text-danger hover:!bg-danger hover:!text-bg"
           >
             Réessayer
           </button>

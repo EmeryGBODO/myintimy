@@ -86,10 +86,10 @@ export default function Product({ id }) {
             </div>
           )}
 
-          <div className="grid grid-cols-[auto_1fr_auto] gap-2.5">
-            <Qty value={qty} onMinus={() => setQty(Math.max(1, qty - 1))} onPlus={() => setQty(Math.min(9, qty + 1))} />
-            <button onClick={add} className="btn">Ajouter au panier</button>
-            <FavButton id={p.id} className="grid w-[54px] place-items-center border border-line-strong" />
+          <div className="flex flex-wrap gap-2.5 sm:grid sm:grid-cols-[auto_1fr_auto]">
+            <Qty className="h-[50px]" value={qty} onMinus={() => setQty(Math.max(1, qty - 1))} onPlus={() => setQty(Math.min(9, qty + 1))} />
+            <button onClick={add} className="btn flex-1 !px-4 sm:!px-8">Ajouter au panier</button>
+            <FavButton id={p.id} className="grid h-[50px] w-[50px] shrink-0 place-items-center border border-line-strong" />
           </div>
 
           <div className="flex items-start gap-3.5 bg-soft px-[18px] py-4 text-[13.5px] text-muted">

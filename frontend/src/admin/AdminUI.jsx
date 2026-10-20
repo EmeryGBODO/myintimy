@@ -47,7 +47,7 @@ export function AdminError({ error, onRetry }) {
         <button
           type="button"
           onClick={onRetry}
-          className="inline-flex shrink-0 items-center justify-center border border-danger/40 bg-transparent px-3 py-1.5 font-sans text-[10px] font-normal uppercase tracking-[.14em] text-danger transition-colors hover:bg-danger hover:text-white"
+          className="inline-flex shrink-0 items-center justify-center border border-danger/40 bg-transparent px-3 py-1.5 font-sans text-[10px] font-normal uppercase tracking-[.14em] text-danger transition-colors hover:bg-danger hover:text-bg"
         >
           Réessayer
         </button>

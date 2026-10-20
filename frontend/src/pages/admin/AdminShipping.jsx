@@ -258,7 +258,7 @@ export default function AdminShipping() {
           ) : (
             <>
               {/* Vue table sur Desktop */}
-              <div className="hidden overflow-hidden border border-line bg-surface md:block">
+              <div className="hidden overflow-x-auto md:block border border-line bg-surface">
                 <table className="w-full text-left text-sm">
                   <thead className="border-b border-line bg-surface/70 font-sans text-[10.5px] uppercase tracking-[.14em] text-muted">
                     <tr>
