@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { applySeo, getSeoMetadata } from "../utils/seo.js";
 import AdminProvider from "./AdminProvider.jsx";
 import { useAdmin } from "./admin-context.js";
 import AdminLayout from "./AdminLayout.jsx";
@@ -52,6 +54,12 @@ function RoutesTree() {
 }
 
 export default function AdminRoutes() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const meta = getSeoMetadata(location.pathname);
+    applySeo(meta);
+  }, [location.pathname]);
   return (
     <AdminProvider>
       <RoutesTree />

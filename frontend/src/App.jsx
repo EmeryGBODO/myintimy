@@ -26,6 +26,7 @@ import AccountAddresses from "./pages/account/AccountAddresses.jsx";
 import AccountOrders from "./pages/account/AccountOrders.jsx";
 import AccountOrderDetail from "./pages/account/AccountOrderDetail.jsx";
 import AdminRoutes from "./admin/AdminRoutes.jsx";
+import { applySeo, getSeoMetadata } from "./utils/seo.js";
 
 /* `key` remet la page à zéro (filtres, taille choisie…) quand on change de catégorie ou de produit */
 function CategoryRoute() {
@@ -38,11 +39,31 @@ function ProductRoute() {
   return <Product key={id} id={id} />;
 }
 
-/* À chaque navigation : retour en haut et fermeture des panneaux */
+/* À chaque navigation : retour en haut, fermeture des panneaux et mise à jour SEO */
 function RouteEffects() {
   const { pathname } = useLocation();
   const { closePanel } = useShop();
-  useEffect(() => { window.scrollTo(0, 0); closePanel(); }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { categories, getProduct } = useCatalog();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    closePanel();
+
+    let product = null;
+    let category = null;
+
+    if (pathname.startsWith("/produit/")) {
+      const id = pathname.replace("/produit/", "");
+      product = getProduct(id);
+    } else if (pathname.startsWith("/categorie/")) {
+      const cat = pathname.replace("/categorie/", "");
+      category = categories?.[cat];
+    }
+
+    const meta = getSeoMetadata(pathname, { product, category });
+    applySeo(meta);
+  }, [pathname, closePanel, categories, getProduct]);
+
   return null;
 }
 
