@@ -10,7 +10,7 @@ export function FavButton({ id, className = "" }) {
   const { isFav, toggleFav } = useShop();
   const on = isFav(id);
   return (
-    <button onClick={(e) => { e.preventDefault(); toggleFav(id); }} aria-pressed={on} aria-label={on ? "Retirer des favoris" : "Ajouter aux favoris"} className={className}>
+    <button type="button" onClick={(e) => { e.preventDefault(); toggleFav(id); }} aria-pressed={on} aria-label={on ? "Retirer des favoris" : "Ajouter aux favoris"} className={className}>
       <IconHeart className={`h-[17px] w-[17px] ${on ? "fill-accent stroke-accent" : ""}`} />
     </button>
   );

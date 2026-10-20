@@ -80,9 +80,20 @@ export default function Product({ id }) {
                 <button onClick={() => openPanel("sizes")} className="font-sans text-[11px] normal-case tracking-wide text-muted underline underline-offset-4">Guide des tailles</button>
               </div>
               <div className="flex flex-wrap gap-2">
-                {p.sizes.map((s) => <button key={s} onClick={() => { setSize(s); setError(""); }} className={`chip !h-11 !min-w-[52px] ${size === s ? "on" : ""}`}>{s}</button>)}
+                {p.sizes.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => { setSize(s); setError(""); }}
+                    aria-pressed={size === s}
+                    aria-label={`Taille ${s}`}
+                    className={`chip !h-11 !min-w-[52px] ${size === s ? "on" : ""}`}
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
-              <p className="mt-2 min-h-[1.2em] font-display text-base italic text-accent">{error}</p>
+              <p className="mt-2 min-h-[1.2em] font-display text-base italic text-accent" role="alert">{error}</p>
             </div>
           )}
 
