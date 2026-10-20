@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { customerApi } from "../../api/customer.js";
 import { PageHead } from "../../components/Shared.jsx";
+import { formatApiErrorMessage } from "../../api/errors.js";
 
 export function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -12,14 +13,16 @@ export function ForgotPassword() {
 
   async function submit(e) {
     e.preventDefault();
+    if (busy) return;
     setError("");
     setBusy(true);
+
     try {
       const result = await customerApi.requestPasswordReset(email.trim());
       setDevToken(result?.development_token || null);
       setSubmitted(true);
     } catch (err) {
-      setError(err?.message || "Impossible de traiter la demande pour le moment.");
+      setError(formatApiErrorMessage(err, "Impossible de traiter la demande pour le moment."));
     } finally {
       setBusy(false);
     }
@@ -87,6 +90,7 @@ export function ForgotPassword() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="votre.email@exemple.com"
+                  disabled={busy}
                   required
                 />
               </label>
@@ -124,6 +128,7 @@ export function ResetPassword() {
 
   async function submit(e) {
     e.preventDefault();
+    if (busy) return;
     setError("");
 
     if (!token) {
@@ -144,7 +149,7 @@ export function ResetPassword() {
       await customerApi.confirmPasswordReset(token, password);
       setDone(true);
     } catch (err) {
-      setError(err?.message || "Impossible de réinitialiser le mot de passe. Le lien est peut-être expiré ou déjà utilisé.");
+      setError(formatApiErrorMessage(err, "Impossible de réinitialiser le mot de passe. Le lien est peut-être expiré ou déjà utilisé."));
     } finally {
       setBusy(false);
     }
@@ -200,6 +205,7 @@ export function ResetPassword() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="10 caractères minimum"
                   minLength={10}
+                  disabled={busy}
                   required
                 />
               </label>
@@ -214,6 +220,7 @@ export function ResetPassword() {
                   onChange={(e) => setConfirm(e.target.value)}
                   placeholder="Répétez votre mot de passe"
                   minLength={10}
+                  disabled={busy}
                   required
                 />
               </label>

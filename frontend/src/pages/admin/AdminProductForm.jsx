@@ -106,6 +106,7 @@ export default function AdminProductForm() {
 
   async function save(event) {
     event.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError(null);
 
@@ -139,7 +140,8 @@ export default function AdminProductForm() {
 
   async function addVariant(event) {
     event.preventDefault();
-    if (!productId) return;
+    if (busy || !productId) return;
+    setBusy(true);
 
     try {
       const payload = {
@@ -154,6 +156,8 @@ export default function AdminProductForm() {
       await reloadProduct(productId);
     } catch (err) {
       setError(err);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -185,7 +189,8 @@ export default function AdminProductForm() {
 
   async function saveVariantEdit(event, variantId) {
     event.preventDefault();
-    if (!variantEdit) return;
+    if (busy || !variantEdit) return;
+    setBusy(true);
 
     try {
       await adminApi.updateVariant(variantId, {
@@ -199,6 +204,8 @@ export default function AdminProductForm() {
       await reloadProduct(productId);
     } catch (err) {
       setError(err);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -216,7 +223,8 @@ export default function AdminProductForm() {
 
   async function uploadImage(event) {
     event.preventDefault();
-    if (!imageFile) return;
+    if (busy || !imageFile) return;
+    setBusy(true);
 
     try {
       const data = new FormData();
@@ -229,6 +237,8 @@ export default function AdminProductForm() {
       await reloadProduct(productId);
     } catch (err) {
       setError(err);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -251,7 +261,7 @@ export default function AdminProductForm() {
     }
   }
 
-  if (loading) return <AdminLoading />;
+  if (loading) return <AdminLoading message="Chargement du produit…" />;
 
   return (
     <>
@@ -260,7 +270,7 @@ export default function AdminProductForm() {
         subtitle={isNew ? "Créer la fiche produit avant d’ajouter variantes et images." : `Prix actuel : ${formatXof(product?.price_xof)}`}
         action={<Link className={ghostButtonClass} to="/admin/products">Retour aux produits</Link>}
       />
-      <AdminError error={error} />
+      <AdminError error={error} onRetry={id ? () => reloadProduct(id) : undefined} />
 
       <form onSubmit={save}>
         <AdminCard>

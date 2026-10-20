@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { adminApi } from "../../api/admin.js";
 import {
   AdminCard,
@@ -21,6 +21,7 @@ function availabilityTone(quantity) {
 export default function AdminInventory() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [adjustingId, setAdjustingId] = useState(null);
   const [error, setError] = useState(null);
   const [q, setQ] = useState("");
   const [delta, setDelta] = useState({});
@@ -28,7 +29,7 @@ export default function AdminInventory() {
   const [movements, setMovements] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const response = await adminApi.inventory();
@@ -39,11 +40,11 @@ export default function AdminInventory() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const filtered = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -57,9 +58,12 @@ export default function AdminInventory() {
   }, [items, q]);
 
   async function adjust(variant) {
+    if (adjustingId) return;
     const value = Number(delta[variant.id] || 0);
     if (!value) return;
 
+    setAdjustingId(variant.id);
+    setError(null);
     try {
       await adminApi.adjustStock(variant.id, {
         delta: value,
@@ -69,6 +73,8 @@ export default function AdminInventory() {
       await load();
     } catch (err) {
       setError(err);
+    } finally {
+      setAdjustingId(null);
     }
   }
 
@@ -89,7 +95,7 @@ export default function AdminInventory() {
   return (
     <>
       <AdminTitle title="Stocks" subtitle="Chaque ajustement crée un mouvement d’inventaire traçable." />
-      <AdminError error={error} />
+      <AdminError error={error} onRetry={load} />
 
       <label className="mb-6 block max-w-xl">
         <span className="field-label">Recherche</span>
@@ -103,9 +109,9 @@ export default function AdminInventory() {
 
       <AdminCard className="p-0">
         {loading ? (
-          <AdminLoading />
+          <AdminLoading message="Chargement des stocks…" />
         ) : filtered.length === 0 ? (
-          <AdminEmpty>Aucune variante ne correspond à votre recherche.</AdminEmpty>
+          <AdminEmpty>Aucune variante ne correspond aux filtres.</AdminEmpty>
         ) : (
           <>
             <div className="divide-y divide-line lg:hidden">
@@ -113,19 +119,15 @@ export default function AdminInventory() {
                 <article key={variant.id} className="p-4 sm:p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <h2 className="font-display text-2xl font-light leading-tight text-fg">{variant.product.name}</h2>
-                      <p className="mt-1 break-all font-mono text-[11px] text-muted">{variant.sku}</p>
+                      <h2 className="font-display text-2xl font-light text-fg">{variant.product.name}</h2>
+                      <p className="mt-1 font-mono text-xs text-muted">{variant.sku}</p>
                     </div>
                     <AdminStatus tone={availabilityTone(variant.available_quantity)}>
-                      {variant.available_quantity <= 0 ? "Rupture" : `${variant.available_quantity} dispo.`}
+                      {variant.available_quantity > 0 ? `${variant.available_quantity} dispo` : "Rupture"}
                     </AdminStatus>
                   </div>
 
-                  <div className="mt-4 text-sm text-fg">
-                    {variant.color.name}{variant.size ? ` / ${variant.size.label}` : ""}
-                  </div>
-
-                  <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+                  <dl className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
                     <div>
                       <dt className="text-xs text-muted">Stock</dt>
                       <dd className="mt-0.5 text-fg">{variant.stock_quantity}</dd>
@@ -148,11 +150,18 @@ export default function AdminInventory() {
                           className={`${inputClass} mt-1`}
                           type="number"
                           placeholder="+5 / -2"
+                          disabled={adjustingId === variant.id}
                           value={delta[variant.id] ?? ""}
                           onChange={(event) => setDelta((current) => ({ ...current, [variant.id]: event.target.value }))}
                         />
                       </label>
-                      <button className={buttonClass} onClick={() => adjust(variant)}>Valider</button>
+                      <button
+                        className={buttonClass}
+                        disabled={adjustingId === variant.id}
+                        onClick={() => adjust(variant)}
+                      >
+                        {adjustingId === variant.id ? "…" : "Valider"}
+                      </button>
                     </div>
                     <button type="button" className="lnk mt-4" onClick={() => showHistory(variant)}>Voir l’historique</button>
                   </div>
@@ -193,12 +202,19 @@ export default function AdminInventory() {
                             <input
                               className={inputClass}
                               type="number"
+                              disabled={adjustingId === variant.id}
                               aria-label={`Ajustement de stock pour ${variant.sku}`}
                               placeholder="+5 / -2"
                               value={delta[variant.id] ?? ""}
                               onChange={(event) => setDelta((current) => ({ ...current, [variant.id]: event.target.value }))}
                             />
-                            <button className={buttonClass} onClick={() => adjust(variant)}>OK</button>
+                            <button
+                              className={buttonClass}
+                              disabled={adjustingId === variant.id}
+                              onClick={() => adjust(variant)}
+                            >
+                              {adjustingId === variant.id ? "…" : "OK"}
+                            </button>
                           </div>
                           <button type="button" className="lnk self-start" onClick={() => showHistory(variant)}>Historique</button>
                         </div>
@@ -224,7 +240,7 @@ export default function AdminInventory() {
           </div>
 
           {historyLoading ? (
-            <AdminLoading />
+            <AdminLoading message="Chargement de l’historique…" />
           ) : movements.length === 0 ? (
             <AdminEmpty>Aucun mouvement enregistré pour cette variante.</AdminEmpty>
           ) : (

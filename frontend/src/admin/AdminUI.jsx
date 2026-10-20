@@ -1,3 +1,5 @@
+import { formatApiErrorMessage } from "../api/errors.js";
+
 const STATUS_TONES = {
   success: "bg-success-soft text-success border-success/20",
   warning: "bg-warning-soft text-warning border-warning/20",
@@ -32,21 +34,44 @@ export function AdminCard({ children, className = "" }) {
   );
 }
 
-export function AdminError({ error }) {
+export function AdminError({ error, onRetry }) {
   if (!error) return null;
+  const message = formatApiErrorMessage(error);
   return (
-    <div className="mb-5 border border-danger/25 bg-danger-soft px-4 py-3 text-sm text-danger" role="alert">
-      {error.message || String(error)}
+    <div
+      className="mb-5 flex flex-col gap-3 border border-danger/25 bg-danger-soft px-4 py-3 text-sm text-danger sm:flex-row sm:items-center sm:justify-between"
+      role="alert"
+    >
+      <span>{message}</span>
+      {onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="inline-flex shrink-0 items-center justify-center border border-danger/40 bg-transparent px-3 py-1.5 font-sans text-[10px] font-normal uppercase tracking-[.14em] text-danger transition-colors hover:bg-danger hover:text-white"
+        >
+          Réessayer
+        </button>
+      )}
     </div>
   );
 }
 
-export function AdminLoading() {
-  return <div className="py-16 text-center text-sm text-muted">Chargement…</div>;
+export function AdminLoading({ message = "Chargement…" }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-16 text-center text-sm text-muted">
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-line-strong border-t-accent" aria-hidden="true" />
+      <span>{message}</span>
+    </div>
+  );
 }
 
-export function AdminEmpty({ children = "Aucune donnée à afficher." }) {
-  return <div className="py-12 text-center text-sm text-muted">{children}</div>;
+export function AdminEmpty({ children = "Aucune donnée à afficher.", action }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center text-sm text-muted">
+      <p>{children}</p>
+      {action && <div className="mt-2">{action}</div>}
+    </div>
+  );
 }
 
 export function AdminStatus({ children, tone = "neutral" }) {

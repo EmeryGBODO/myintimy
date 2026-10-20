@@ -97,6 +97,7 @@ export default function AdminShipping() {
   }
 
   async function toggleStatus(zone) {
+    if (busy) return;
     setBusy(true);
     setError(null);
     setSuccess(null);
@@ -115,6 +116,7 @@ export default function AdminShipping() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (busy) return;
     setError(null);
     setSuccess(null);
 
@@ -181,7 +183,7 @@ export default function AdminShipping() {
         }
       />
 
-      <AdminError error={error} />
+      <AdminError error={error} onRetry={load} />
 
       {success && (
         <div

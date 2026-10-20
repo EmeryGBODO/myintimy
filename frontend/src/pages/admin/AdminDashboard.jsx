@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "../../api/admin.js";
 import { AdminCard, AdminError, AdminLoading, AdminTitle } from "../../admin/AdminUI.jsx";
 
@@ -14,20 +14,34 @@ const CARDS = [
 
 export default function AdminDashboard() {
   const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    adminApi.dashboard().then(setData).catch(setError);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await adminApi.dashboard();
+      setData(response);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   return (
     <>
       <AdminTitle title="Tableau de bord" subtitle="Vue synthétique du catalogue et du stock." />
-      <AdminError error={error} />
+      <AdminError error={error} onRetry={load} />
 
-      {!data ? (
-        <AdminLoading />
-      ) : (
+      {loading ? (
+        <AdminLoading message="Chargement du tableau de bord…" />
+      ) : data ? (
         <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
           {CARDS.map(([key, label]) => (
             <AdminCard key={key} className="relative overflow-hidden">
@@ -39,7 +53,7 @@ export default function AdminDashboard() {
             </AdminCard>
           ))}
         </div>
-      )}
+      ) : null}
     </>
   );
 }

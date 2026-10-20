@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "../../api/admin.js";
 import {
   AdminCard,
   AdminEmpty,
   AdminError,
+  AdminLoading,
   AdminStatus,
   AdminTitle,
   buttonClass,
@@ -18,20 +19,26 @@ export default function AdminCategories() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(EMPTY);
   const [editing, setEditing] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
+    setLoading(true);
     try {
       setItems(await adminApi.categories());
       setError(null);
     } catch (err) {
       setError(err);
+    } finally {
+      setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   function startEdit(category) {
     setEditing(category.id);
@@ -51,7 +58,9 @@ export default function AdminCategories() {
 
   async function save(event) {
     event.preventDefault();
+    if (busy) return;
     setError(null);
+    setBusy(true);
 
     try {
       const payload = { ...form, display_order: Number(form.display_order) };
@@ -64,23 +73,31 @@ export default function AdminCategories() {
       await load();
     } catch (err) {
       setError(err);
+    } finally {
+      setBusy(false);
     }
   }
 
   async function remove(id) {
+    if (deletingId) return;
     if (!window.confirm("Supprimer cette catégorie ?")) return;
+    setDeletingId(id);
+    setError(null);
     try {
       await adminApi.deleteCategory(id);
+      if (editing === id) reset();
       await load();
     } catch (err) {
       setError(err);
+    } finally {
+      setDeletingId(null);
     }
   }
 
   return (
     <>
       <AdminTitle title="Catégories" subtitle="Structure principale du catalogue." />
-      <AdminError error={error} />
+      <AdminError error={error} onRetry={load} />
 
       <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)] xl:items-start">
         <AdminCard className="xl:sticky xl:top-8">
@@ -91,33 +108,68 @@ export default function AdminCategories() {
           <form onSubmit={save} className="space-y-5">
             <label className="block">
               <span className="field-label">Nom</span>
-              <input className={`${inputClass} mt-1`} required value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} />
+              <input
+                className={`${inputClass} mt-1`}
+                required
+                disabled={busy}
+                value={form.title}
+                onChange={(event) => setForm({ ...form, title: event.target.value })}
+              />
             </label>
 
             <label className="block">
               <span className="field-label">Slug <span className="normal-case tracking-normal text-muted">(optionnel)</span></span>
-              <input className={`${inputClass} mt-1`} value={form.slug} onChange={(event) => setForm({ ...form, slug: event.target.value })} />
+              <input
+                className={`${inputClass} mt-1`}
+                disabled={busy}
+                value={form.slug}
+                onChange={(event) => setForm({ ...form, slug: event.target.value })}
+              />
             </label>
 
             <label className="block">
               <span className="field-label">Sous-titre</span>
-              <textarea className={`${inputClass} mt-1 resize-y`} rows="3" value={form.subtitle} onChange={(event) => setForm({ ...form, subtitle: event.target.value })} />
+              <textarea
+                className={`${inputClass} mt-1 resize-y`}
+                rows="3"
+                disabled={busy}
+                value={form.subtitle}
+                onChange={(event) => setForm({ ...form, subtitle: event.target.value })}
+              />
             </label>
 
             <label className="block">
               <span className="field-label">Ordre</span>
-              <input className={`${inputClass} mt-1`} type="number" value={form.display_order} onChange={(event) => setForm({ ...form, display_order: event.target.value })} />
+              <input
+                className={`${inputClass} mt-1`}
+                type="number"
+                disabled={busy}
+                value={form.display_order}
+                onChange={(event) => setForm({ ...form, display_order: event.target.value })}
+              />
             </label>
 
             <label className="flex items-center gap-2.5 text-sm text-fg">
-              <input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} />
+              <input
+                type="checkbox"
+                disabled={busy}
+                checked={form.is_active}
+                onChange={(event) => setForm({ ...form, is_active: event.target.checked })}
+              />
               Catégorie active
             </label>
 
             <div className="flex flex-col gap-2 sm:flex-row xl:flex-col 2xl:flex-row">
-              <button className={`${buttonClass} w-full`}>{editing ? "Enregistrer" : "Créer"}</button>
+              <button disabled={busy} className={`${buttonClass} w-full`}>
+                {busy ? "Enregistrement…" : editing ? "Enregistrer" : "Créer"}
+              </button>
               {editing && (
-                <button type="button" className={`${ghostButtonClass} w-full`} onClick={reset}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  className={`${ghostButtonClass} w-full`}
+                  onClick={reset}
+                >
                   Annuler
                 </button>
               )}
@@ -126,8 +178,10 @@ export default function AdminCategories() {
         </AdminCard>
 
         <AdminCard className="p-0">
-          {items.length === 0 ? (
-            <AdminEmpty>Aucune catégorie.</AdminEmpty>
+          {loading ? (
+            <AdminLoading message="Chargement des catégories…" />
+          ) : items.length === 0 ? (
+            <AdminEmpty>Aucune catégorie pour le moment.</AdminEmpty>
           ) : (
             <>
               <div className="divide-y divide-line md:hidden">
@@ -146,8 +200,20 @@ export default function AdminCategories() {
                     <div className="mt-4 text-sm text-muted">Ordre d’affichage : <span className="text-fg">{category.display_order}</span></div>
 
                     <div className="mt-5 flex flex-col gap-2 border-t border-line pt-4 sm:flex-row sm:justify-end">
-                      <button className={ghostButtonClass} onClick={() => startEdit(category)}>Modifier</button>
-                      <button className={dangerButtonClass} onClick={() => remove(category.id)}>Supprimer</button>
+                      <button
+                        className={ghostButtonClass}
+                        disabled={busy || deletingId === category.id}
+                        onClick={() => startEdit(category)}
+                      >
+                        Modifier
+                      </button>
+                      <button
+                        className={dangerButtonClass}
+                        disabled={busy || deletingId === category.id}
+                        onClick={() => remove(category.id)}
+                      >
+                        {deletingId === category.id ? "Suppression…" : "Supprimer"}
+                      </button>
                     </div>
                   </article>
                 ))}
@@ -178,8 +244,20 @@ export default function AdminCategories() {
                         </td>
                         <td className="p-4 text-right">
                           <div className="flex justify-end gap-4">
-                            <button className="lnk" onClick={() => startEdit(category)}>Modifier</button>
-                            <button className="lnk text-danger" onClick={() => remove(category.id)}>Supprimer</button>
+                            <button
+                              className="lnk disabled:opacity-50"
+                              disabled={busy || deletingId === category.id}
+                              onClick={() => startEdit(category)}
+                            >
+                              Modifier
+                            </button>
+                            <button
+                              className="lnk text-danger disabled:opacity-50"
+                              disabled={busy || deletingId === category.id}
+                              onClick={() => remove(category.id)}
+                            >
+                              {deletingId === category.id ? "Suppression…" : "Supprimer"}
+                            </button>
                           </div>
                         </td>
                       </tr>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { adminApi } from "../../api/admin.js";
 import {
   AdminCard,
@@ -35,7 +35,7 @@ export default function AdminReferences() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [colorItems, sizeItems] = await Promise.all([adminApi.colors(), adminApi.sizes()]);
@@ -47,11 +47,11 @@ export default function AdminReferences() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   function resetColor() {
     setEditingColor(null);
@@ -86,6 +86,7 @@ export default function AdminReferences() {
 
   async function saveColor(event) {
     event.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError(null);
     try {
@@ -104,6 +105,7 @@ export default function AdminReferences() {
 
   async function saveSize(event) {
     event.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError(null);
     try {
@@ -147,10 +149,10 @@ export default function AdminReferences() {
         title="Référentiels"
         subtitle="Gérez les couleurs et tailles disponibles pour les variantes produit."
       />
-      <AdminError error={error} />
+      <AdminError error={error} onRetry={load} />
 
       {loading ? (
-        <AdminLoading />
+        <AdminLoading message="Chargement des référentiels…" />
       ) : (
         <div className="grid gap-6 xl:grid-cols-2">
           <AdminCard>
@@ -159,33 +161,36 @@ export default function AdminReferences() {
 
             <form onSubmit={saveColor} className="mt-6 grid gap-4 sm:grid-cols-2">
               <Field label="Nom">
-                <input required className={`${inputClass} mt-1`} value={colorForm.name} onChange={(event) => setColorForm({ ...colorForm, name: event.target.value })} />
+                <input required disabled={busy} className={`${inputClass} mt-1`} value={colorForm.name} onChange={(event) => setColorForm({ ...colorForm, name: event.target.value })} />
               </Field>
               <Field label="Slug">
-                <input className={`${inputClass} mt-1`} placeholder="Automatique si vide" value={colorForm.slug} onChange={(event) => setColorForm({ ...colorForm, slug: event.target.value })} />
+                <input disabled={busy} className={`${inputClass} mt-1`} placeholder="Automatique si vide" value={colorForm.slug} onChange={(event) => setColorForm({ ...colorForm, slug: event.target.value })} />
               </Field>
               <Field label="Couleur">
                 <div className="mt-1 flex items-center gap-3">
                   <input
                     type="color"
+                    disabled={busy}
                     className="h-10 w-12 shrink-0 cursor-pointer border border-line bg-transparent p-1"
                     value={colorForm.hex_value}
                     onChange={(event) => setColorForm({ ...colorForm, hex_value: event.target.value.toUpperCase() })}
                     aria-label="Choisir la couleur"
                   />
-                  <input required pattern="#[0-9A-Fa-f]{6}" className={inputClass} value={colorForm.hex_value} onChange={(event) => setColorForm({ ...colorForm, hex_value: event.target.value })} />
+                  <input required pattern="#[0-9A-Fa-f]{6}" disabled={busy} className={inputClass} value={colorForm.hex_value} onChange={(event) => setColorForm({ ...colorForm, hex_value: event.target.value })} />
                 </div>
               </Field>
               <Field label="Ordre">
-                <input type="number" className={`${inputClass} mt-1`} value={colorForm.display_order} onChange={(event) => setColorForm({ ...colorForm, display_order: event.target.value })} />
+                <input type="number" disabled={busy} className={`${inputClass} mt-1`} value={colorForm.display_order} onChange={(event) => setColorForm({ ...colorForm, display_order: event.target.value })} />
               </Field>
               <label className="flex items-center gap-2.5 text-sm text-fg sm:col-span-2">
-                <input type="checkbox" checked={colorForm.is_active} onChange={(event) => setColorForm({ ...colorForm, is_active: event.target.checked })} />
+                <input type="checkbox" disabled={busy} checked={colorForm.is_active} onChange={(event) => setColorForm({ ...colorForm, is_active: event.target.checked })} />
                 Disponible pour les nouvelles variantes
               </label>
               <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
-                <button disabled={busy} className={`${buttonClass} w-full sm:w-auto`}>{editingColor ? "Enregistrer" : "Ajouter la couleur"}</button>
-                {editingColor && <button type="button" className={`${ghostButtonClass} w-full sm:w-auto`} onClick={resetColor}>Annuler</button>}
+                <button disabled={busy} className={`${buttonClass} w-full sm:w-auto`}>
+                  {busy ? "Enregistrement…" : editingColor ? "Enregistrer" : "Ajouter la couleur"}
+                </button>
+                {editingColor && <button type="button" disabled={busy} className={`${ghostButtonClass} w-full sm:w-auto`} onClick={resetColor}>Annuler</button>}
               </div>
             </form>
 
@@ -215,21 +220,23 @@ export default function AdminReferences() {
 
             <form onSubmit={saveSize} className="mt-6 grid gap-4 sm:grid-cols-2">
               <Field label="Code">
-                <input required className={`${inputClass} mt-1`} placeholder="M, 40, TU…" value={sizeForm.code} onChange={(event) => setSizeForm({ ...sizeForm, code: event.target.value })} />
+                <input required disabled={busy} className={`${inputClass} mt-1`} placeholder="M, 40, TU…" value={sizeForm.code} onChange={(event) => setSizeForm({ ...sizeForm, code: event.target.value })} />
               </Field>
               <Field label="Libellé">
-                <input required className={`${inputClass} mt-1`} value={sizeForm.label} onChange={(event) => setSizeForm({ ...sizeForm, label: event.target.value })} />
+                <input required disabled={busy} className={`${inputClass} mt-1`} value={sizeForm.label} onChange={(event) => setSizeForm({ ...sizeForm, label: event.target.value })} />
               </Field>
               <Field label="Ordre">
-                <input type="number" className={`${inputClass} mt-1`} value={sizeForm.display_order} onChange={(event) => setSizeForm({ ...sizeForm, display_order: event.target.value })} />
+                <input type="number" disabled={busy} className={`${inputClass} mt-1`} value={sizeForm.display_order} onChange={(event) => setSizeForm({ ...sizeForm, display_order: event.target.value })} />
               </Field>
               <label className="flex items-end gap-2.5 pb-2 text-sm text-fg">
-                <input type="checkbox" checked={sizeForm.is_active} onChange={(event) => setSizeForm({ ...sizeForm, is_active: event.target.checked })} />
+                <input type="checkbox" disabled={busy} checked={sizeForm.is_active} onChange={(event) => setSizeForm({ ...sizeForm, is_active: event.target.checked })} />
                 Disponible
               </label>
               <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
-                <button disabled={busy} className={`${buttonClass} w-full sm:w-auto`}>{editingSize ? "Enregistrer" : "Ajouter la taille"}</button>
-                {editingSize && <button type="button" className={`${ghostButtonClass} w-full sm:w-auto`} onClick={resetSize}>Annuler</button>}
+                <button disabled={busy} className={`${buttonClass} w-full sm:w-auto`}>
+                  {busy ? "Enregistrement…" : editingSize ? "Enregistrer" : "Ajouter la taille"}
+                </button>
+                {editingSize && <button type="button" disabled={busy} className={`${ghostButtonClass} w-full sm:w-auto`} onClick={resetSize}>Annuler</button>}
               </div>
             </form>
 

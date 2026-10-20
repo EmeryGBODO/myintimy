@@ -35,7 +35,7 @@ export default function AdminOrders() {
   return (
     <>
       <AdminTitle title="Commandes" subtitle="Suivez les commandes, leur préparation et l’évolution du stock réservé." />
-      <AdminError error={error} />
+      <AdminError error={error} onRetry={load} />
 
       <div className="mb-6 grid gap-4 md:grid-cols-[minmax(0,1fr)_240px]">
         <label>
@@ -53,7 +53,7 @@ export default function AdminOrders() {
 
       <p className="mb-3 text-xs uppercase tracking-[.12em] text-muted">{countLabel}</p>
       <AdminCard className="p-0">
-        {loading ? <AdminLoading /> : items.length === 0 ? <AdminEmpty>Aucune commande ne correspond aux filtres.</AdminEmpty> : (
+        {loading ? <AdminLoading message="Recherche des commandes…" /> : items.length === 0 ? <AdminEmpty>Aucune commande ne correspond aux filtres.</AdminEmpty> : (
           <>
             <div className="divide-y divide-line md:hidden">
               {items.map((order) => {

@@ -17,6 +17,7 @@ export default function AdminLogin() {
 
   async function submit(event) {
     event.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError(null);
 
@@ -24,7 +25,11 @@ export default function AdminLogin() {
       await login(email, password);
       navigate(location.state?.from || "/admin", { replace: true });
     } catch (err) {
-      setError(err);
+      if (err?.status === 401 || err?.code === "INVALID_ADMIN_CREDENTIALS") {
+        setError(new Error("Email ou mot de passe incorrect."));
+      } else {
+        setError(err);
+      }
     } finally {
       setBusy(false);
     }
@@ -62,6 +67,7 @@ export default function AdminLogin() {
               className={`${inputClass} mt-1.5`}
               type="email"
               required
+              disabled={busy}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               autoComplete="username"
@@ -74,6 +80,7 @@ export default function AdminLogin() {
               className={`${inputClass} mt-1.5`}
               type="password"
               required
+              disabled={busy}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               autoComplete="current-password"
