@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "../../api/admin.js";
-import { AdminCard, AdminEmpty, AdminError, AdminLoading, AdminStatus, AdminTitle, inputClass } from "../../admin/AdminUI.jsx";
+import { AdminCard, AdminEmpty, AdminError, AdminLoading, AdminStatus, AdminTitle, compactButtonClass, inputClass } from "../../admin/AdminUI.jsx";
 import { formatDateTime, formatXof } from "../../admin/format.js";
-import { ORDER_STATUS, orderStatus } from "../../admin/orders.js";
+import { ORDER_STATUS, ORDER_TRANSITIONS, orderStatus } from "../../admin/orders.js";
 
 export default function AdminOrders() {
   const [items, setItems] = useState([]);
@@ -11,6 +11,7 @@ export default function AdminOrders() {
   const [error, setError] = useState(null);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("");
+  const [updatingId, setUpdatingId] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -31,6 +32,25 @@ export default function AdminOrders() {
   }, [load]);
 
   const countLabel = useMemo(() => `${items.length} commande${items.length > 1 ? "s" : ""}`, [items.length]);
+
+  async function advanceOrder(order) {
+    const nextStatus = (ORDER_TRANSITIONS[order.status] || []).find((value) => value !== "cancelled");
+    if (!nextStatus || updatingId) return;
+
+    const nextMeta = orderStatus(nextStatus);
+    if (!window.confirm(`Passer la commande ${order.reference} à « ${nextMeta.label} » ?`)) return;
+
+    setUpdatingId(order.id);
+    try {
+      const updated = await adminApi.updateOrderStatus(order.id, { status: nextStatus, note: null });
+      setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setError(null);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setUpdatingId(null);
+    }
+  }
 
   return (
     <>
@@ -79,7 +99,7 @@ export default function AdminOrders() {
             </div>
 
             <div className="hidden overflow-x-auto md:block">
-              <table className="w-full min-w-[880px] text-sm">
+              <table className="w-full min-w-[1000px] text-sm">
                 <thead className="border-b border-line bg-surface/55 text-left text-[10px] uppercase tracking-[.14em] text-muted">
                   <tr>
                     <th className="p-4 font-normal">Commande</th>
@@ -88,11 +108,14 @@ export default function AdminOrders() {
                     <th className="px-3 py-4 font-normal">Statut</th>
                     <th className="px-3 py-4 font-normal">Articles</th>
                     <th className="p-4 text-right font-normal">Total</th>
+                    <th className="p-4 text-right font-normal">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">
                   {items.map((order) => {
                     const meta = orderStatus(order.status);
+                    const nextStatus = (ORDER_TRANSITIONS[order.status] || []).find((value) => value !== "cancelled");
+                    const nextMeta = nextStatus ? orderStatus(nextStatus) : null;
                     return (
                       <tr key={order.id} className="transition-colors hover:bg-surface/40">
                         <td className="p-4"><Link to={`/admin/orders/${order.id}`} className="lnk font-mono text-xs">{order.reference}</Link></td>
@@ -101,6 +124,18 @@ export default function AdminOrders() {
                         <td className="px-3 py-4"><AdminStatus tone={meta.tone}>{meta.label}</AdminStatus></td>
                         <td className="px-3 py-4">{order.items.reduce((sum, item) => sum + item.quantity, 0)}</td>
                         <td className="p-4 text-right tabular-nums">{formatXof(order.total_xof)}</td>
+                        <td className="p-4 text-right">
+                          {nextStatus ? (
+                            <button
+                              type="button"
+                              disabled={updatingId === order.id}
+                              className={compactButtonClass}
+                              onClick={() => advanceOrder(order)}
+                            >
+                              {updatingId === order.id ? "Mise à jour…" : nextMeta.label}
+                            </button>
+                          ) : <span className="text-xs text-muted">—</span>}
+                        </td>
                       </tr>
                     );
                   })}
