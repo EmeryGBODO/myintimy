@@ -34,6 +34,7 @@ export const adminApi = {
   },
   order: (id) => adminGet(`orders/${id}`),
   updateOrderStatus: (id, payload) => adminPatch(`orders/${id}/status`, payload),
+  markOrderPaymentReceived: (id, payload = {}) => adminPost(`orders/${id}/payment-received`, payload),
 
   categories: () => adminGet("categories"),
   createCategory: (payload) => adminPost("categories", payload),

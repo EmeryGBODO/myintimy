@@ -163,14 +163,14 @@ def test_success_verification_is_idempotent_without_duplicate_order_transition(c
         payment = db.get(PaymentTransaction, UUID(payment_id))
         stored_variant = db.get(ProductVariant, UUID(variant["id"]))
         assert payment.status == PaymentStatus.SUCCEEDED
-        assert order.status == "confirmed"
+        assert order.status == "pending_confirmation"
         assert order.payment_status == "paid"
         assert stored_variant.stock_quantity == 12
         assert stored_variant.reserved_quantity == 1
         confirmations = [
             entry
             for entry in order.history
-            if entry.from_status == "pending_payment" and entry.to_status == "confirmed"
+            if entry.from_status == "pending_payment" and entry.to_status == "pending_confirmation"
         ]
         assert len(confirmations) == 1
 
@@ -263,7 +263,7 @@ def test_failed_webhook_can_be_retried_after_transient_provider_error(client, se
     with SessionLocal() as db:
         order = db.get(Order, UUID(body["id"]))
         events = db.query(PaymentWebhookEvent).all()
-        assert order.status == "confirmed"
+        assert order.status == "pending_confirmation"
         assert order.payment_status == "paid"
         assert len(events) == 1
         assert events[0].status == "processed"

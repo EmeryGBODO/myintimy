@@ -15,7 +15,7 @@ from app.repositories.orders import OrderRepository
 from app.schemas.orders import OrderCreateIn
 from app.services.email import EmailService
 from app.services.kkiapay import KkiapayGateway
-from app.services.payments import PaymentMethod, PaymentService
+from app.services.payments import PaymentMethod, PaymentService, PaymentStatus
 from app.services.shipping import ShippingService
 
 logger = logging.getLogger("myintimy.orders")
@@ -23,17 +23,19 @@ logger = logging.getLogger("myintimy.orders")
 
 class OrderStatus:
     PENDING_PAYMENT = "pending_payment"
+    PENDING_CONFIRMATION = "pending_confirmation"
     CONFIRMED = "confirmed"
     PREPARING = "preparing"
     SHIPPED = "shipped"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
 
-    ALL = {PENDING_PAYMENT, CONFIRMED, PREPARING, SHIPPED, DELIVERED, CANCELLED}
+    ALL = {PENDING_PAYMENT, PENDING_CONFIRMATION, CONFIRMED, PREPARING, SHIPPED, DELIVERED, CANCELLED}
 
 
 ALLOWED_TRANSITIONS = {
-    OrderStatus.PENDING_PAYMENT: {OrderStatus.CONFIRMED, OrderStatus.CANCELLED},
+    OrderStatus.PENDING_PAYMENT: {OrderStatus.CANCELLED},
+    OrderStatus.PENDING_CONFIRMATION: {OrderStatus.CONFIRMED, OrderStatus.CANCELLED},
     OrderStatus.CONFIRMED: {OrderStatus.PREPARING, OrderStatus.CANCELLED},
     OrderStatus.PREPARING: {OrderStatus.SHIPPED, OrderStatus.CANCELLED},
     OrderStatus.SHIPPED: {OrderStatus.DELIVERED},
@@ -128,8 +130,8 @@ class OrderService:
         zone = self.shipping_service.get_zone(data.city)
         shipping = self.shipping_service.calculate_fee(city=data.city, subtotal_xof=subtotal)
         is_mobile_money = data.payment_method == PaymentMethod.MOBILE_MONEY
-        initial_status = OrderStatus.PENDING_PAYMENT if is_mobile_money else OrderStatus.CONFIRMED
-        initial_payment_status = "pending" if is_mobile_money else "cash_on_delivery"
+        initial_status = OrderStatus.PENDING_PAYMENT if is_mobile_money else OrderStatus.PENDING_CONFIRMATION
+        initial_payment_status = "pending" if is_mobile_money else "pending_collection"
         order = Order(
             reference=self._reference(),
             customer_id=customer.id if customer else None,
@@ -162,7 +164,7 @@ class OrderService:
             order.history.append(
                 OrderStatusHistory(
                     from_status=None,
-                    to_status=OrderStatus.CONFIRMED,
+                    to_status=OrderStatus.PENDING_CONFIRMATION,
                     note="Commande créée - paiement à la livraison",
                 )
             )
@@ -250,5 +252,41 @@ class OrderService:
 
         order.status = status
         order.history.append(OrderStatusHistory(from_status=current, to_status=status, note=note.strip() if note else None))
+        self.db.commit()
+        return self.get(order.id)
+
+    def mark_cash_on_delivery_paid(self, order_id: UUID, *, note: str | None = None) -> Order:
+        order = self.repository.get_by_id(order_id, for_update=True)
+        if not order:
+            raise ApiException(status_code=404, code="ORDER_NOT_FOUND", message="Commande introuvable.")
+        if order.payment_method != PaymentMethod.CASH_ON_DELIVERY:
+            raise ApiException(
+                status_code=409,
+                code="PAYMENT_METHOD_MISMATCH",
+                message="Seul un paiement à la livraison peut être encaissé manuellement.",
+            )
+        if order.status != OrderStatus.DELIVERED:
+            raise ApiException(
+                status_code=409,
+                code="PAYMENT_COLLECTION_NOT_ALLOWED",
+                message="Le paiement à la livraison ne peut être encaissé qu'après la livraison.",
+            )
+        if order.payment_status == "paid":
+            return order
+
+        payment = next((item for item in order.payments if item.method == PaymentMethod.CASH_ON_DELIVERY), None)
+        if payment is None:
+            raise ApiException(status_code=409, code="PAYMENT_NOT_FOUND", message="Paiement introuvable.")
+
+        payment.status = PaymentStatus.SUCCEEDED
+        payment.completed_at = datetime.now(timezone.utc)
+        order.payment_status = "paid"
+        order.history.append(
+            OrderStatusHistory(
+                from_status=order.status,
+                to_status=order.status,
+                note=note.strip() if note else "Paiement à la livraison reçu",
+            )
+        )
         self.db.commit()
         return self.get(order.id)

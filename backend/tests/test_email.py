@@ -385,7 +385,7 @@ def test_order_creation_persists_even_if_smtp_fails(client, seeded_db, caplog, m
         assert response.status_code == 201
         data = response.json()
         assert data["reference"].startswith("MYI-")
-        assert data["status"] == "confirmed"
+        assert data["status"] == "pending_confirmation"
         assert data["customer_email"] == "koffi@example.com"
 
         # 2. L'erreur SMTP a été journalisée proprement

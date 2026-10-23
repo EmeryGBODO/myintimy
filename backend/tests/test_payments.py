@@ -161,7 +161,7 @@ def test_verified_kkiapay_success_confirms_order_only_after_provider_check(clien
 
     assert verified.status_code == 200
     body = verified.json()
-    assert body["status"] == "confirmed"
+    assert body["status"] == "pending_confirmation"
     assert body["payment_status"] == "paid"
     assert body["payments"][0]["status"] == PaymentStatus.SUCCEEDED
     assert body["payments"][0]["provider_transaction_id"] == "KKIA-CONFIRMED"
@@ -222,7 +222,7 @@ def test_kkiapay_webhook_is_server_verified_audited_and_idempotent(client, seede
         order = db.get(Order, UUID(body["id"]))
         payment = db.get(PaymentTransaction, UUID(payment_id))
         events = db.query(PaymentWebhookEvent).all()
-        assert order.status == "confirmed"
+        assert order.status == "pending_confirmation"
         assert order.payment_status == "paid"
         assert payment.status == PaymentStatus.SUCCEEDED
         assert payment.provider_transaction_id == "KKIA-WEBHOOK-001"

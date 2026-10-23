@@ -53,7 +53,7 @@ def test_create_order_recalculates_total_and_reserves_stock(client, seeded_db):
     assert response.status_code == 201
     order = response.json()
     assert order["reference"].startswith("MYI-")
-    assert order["status"] == "confirmed"
+    assert order["status"] == "pending_confirmation"
     assert order["payment_method"] == "cash_on_delivery"
     assert order["subtotal_xof"] == 38000
     assert order["shipping_xof"] == 1500
@@ -89,6 +89,13 @@ def test_admin_order_lifecycle_ships_stock_once(client, seeded_db):
     listing = client.get("/api/v1/admin/orders", headers=headers)
     assert listing.status_code == 200
     assert listing.json()["total"] == 1
+
+    taken_in_charge = client.patch(
+        f"/api/v1/admin/orders/{order_id}/status",
+        headers=headers,
+        json={"status": "confirmed", "note": "Prise en charge"},
+    )
+    assert taken_in_charge.status_code == 200
 
     preparing = client.patch(
         f"/api/v1/admin/orders/{order_id}/status",
@@ -147,6 +154,34 @@ def test_cancelling_order_releases_reservation(client, seeded_db):
         assert db_variant.reserved_quantity == 0
 
 
+def test_cash_on_delivery_payment_is_recorded_after_delivery(client, seeded_db):
+    variant = _variant(client)
+    created = client.post("/api/v1/orders", json=_payload(variant["id"]))
+    order_id = created.json()["id"]
+    headers = _admin_headers(client)
+
+    too_early = client.post(f"/api/v1/admin/orders/{order_id}/payment-received", headers=headers, json={})
+    assert too_early.status_code == 409
+
+    for status in ("confirmed", "preparing", "shipped", "delivered"):
+        response = client.patch(
+            f"/api/v1/admin/orders/{order_id}/status",
+            headers=headers,
+            json={"status": status},
+        )
+        assert response.status_code == 200
+
+    received = client.post(
+        f"/api/v1/admin/orders/{order_id}/payment-received",
+        headers=headers,
+        json={"note": "Encaissement remis par le livreur"},
+    )
+    assert received.status_code == 200
+    assert received.json()["status"] == "delivered"
+    assert received.json()["payment_status"] == "paid"
+    assert received.json()["payments"][0]["status"] == "succeeded"
+
+
 def test_order_creation_triggers_confirmation_email_and_admin_notification(client, seeded_db):
     """Vérifie que la création d'une commande déclenche la confirmation client et l'alerte admin."""
     variant = _variant(client)
@@ -164,7 +199,7 @@ def test_order_creation_triggers_confirmation_email_and_admin_notification(clien
         mock_client_mail.assert_called_once()
         order_arg = mock_client_mail.call_args[0][0]
         assert order_arg.reference == data["reference"]
-        assert order_arg.status == "confirmed"
+        assert order_arg.status == "pending_confirmation"
         assert order_arg.customer_email == "awa.mensah@example.com"
         assert len(order_arg.items) == 1
         assert order_arg.items[0].quantity == 2
@@ -201,13 +236,13 @@ def test_order_creation_persists_and_is_not_cancelled_if_email_fails(client, see
         response = client.post("/api/v1/orders", json=payload)
         assert response.status_code == 201
         order_data = response.json()
-        assert order_data["status"] == "confirmed"
+        assert order_data["status"] == "pending_confirmation"
 
         # Vérification en base : la commande existe bien et n'a pas été supprimée/annulée
         with SessionLocal() as db:
             db_order = db.query(Order).filter(Order.reference == order_data["reference"]).one_or_none()
             assert db_order is not None
-            assert db_order.status == "confirmed"
+            assert db_order.status == "pending_confirmation"
             # La réservation de stock est bien active
             db_variant = db.get(ProductVariant, UUID(variant["id"]))
             assert db_variant.reserved_quantity >= 1

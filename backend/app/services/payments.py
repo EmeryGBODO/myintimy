@@ -308,11 +308,11 @@ class PaymentService:
                 order.history.append(
                     OrderStatusHistory(
                         from_status="pending_payment",
-                        to_status="confirmed",
+                        to_status="pending_confirmation",
                         note="Paiement Mobile Money confirmé par le prestataire",
                     )
                 )
-                order.status = "confirmed"
+                order.status = "pending_confirmation"
             return order
 
         if normalized_status == "FAILED":

@@ -179,7 +179,7 @@ export default function Checkout() {
       window.scrollTo(0, 0);
       return;
     }
-    if (verified.payment_status !== "paid" || verified.status !== "confirmed") {
+    if (verified.payment_status !== "paid" || verified.status !== "pending_confirmation") {
       throw new Error("Le paiement n'a pas encore été confirmé par le serveur.");
     }
     setOrder(verified);
@@ -192,8 +192,8 @@ export default function Checkout() {
     const paymentMessage = order.payment_status === "paid_review"
       ? "Le paiement a été reçu après l’expiration de la réservation. Notre équipe doit le vérifier avant traitement."
       : order.payment_method === "mobile_money"
-        ? "Votre paiement Mobile Money a été vérifié par le serveur et votre commande est validée."
-        : "Votre commande est confirmée et le stock correspondant a été réservé. Le règlement sera effectué à la livraison.";
+        ? "Votre paiement Mobile Money a été vérifié. Votre commande attend maintenant sa prise en charge."
+        : "Votre commande a été reçue. Le règlement sera effectué à la livraison.";
     return (
       <section className="wrap grid justify-items-center gap-5 py-20 text-center lg:py-36">
         <p className="eyebrow">Commande enregistrée</p>

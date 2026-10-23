@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_admin, get_db
-from app.schemas.orders import AdminOrderStatusUpdateIn, OrderOut
+from app.schemas.orders import AdminOrderPaymentReceivedIn, AdminOrderStatusUpdateIn, OrderOut
 from app.services.orders import OrderService
 
 router = APIRouter(prefix="/admin/orders", tags=["admin-orders"], dependencies=[Depends(get_current_admin)])
@@ -30,3 +30,8 @@ def order_detail(order_id: UUID, db: Session = Depends(get_db)):
 @router.patch("/{order_id}/status", response_model=OrderOut)
 def update_order_status(order_id: UUID, payload: AdminOrderStatusUpdateIn, db: Session = Depends(get_db)):
     return OrderService(db).transition(order_id, status=payload.status, note=payload.note)
+
+
+@router.post("/{order_id}/payment-received", response_model=OrderOut)
+def mark_payment_received(order_id: UUID, payload: AdminOrderPaymentReceivedIn, db: Session = Depends(get_db)):
+    return OrderService(db).mark_cash_on_delivery_paid(order_id, note=payload.note)

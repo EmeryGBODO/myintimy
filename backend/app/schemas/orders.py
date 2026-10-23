@@ -108,3 +108,7 @@ class OrderOut(BaseModel):
 class AdminOrderStatusUpdateIn(BaseModel):
     status: str = Field(min_length=1, max_length=32)
     note: str | None = Field(default=None, max_length=500)
+
+
+class AdminOrderPaymentReceivedIn(BaseModel):
+    note: str | None = Field(default=None, max_length=500)

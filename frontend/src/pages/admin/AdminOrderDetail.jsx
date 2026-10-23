@@ -5,6 +5,18 @@ import { AdminCard, AdminError, AdminLoading, AdminStatus, AdminTitle, buttonCla
 import { formatDateTime, formatXof } from "../../admin/format.js";
 import { ORDER_TRANSITIONS, orderStatus } from "../../admin/orders.js";
 
+const PAYMENT_STATUS = {
+  pending: "En attente de paiement",
+  pending_collection: "À encaisser à la livraison",
+  paid: "Paiement reçu",
+  paid_review: "Paiement à vérifier",
+  failed: "Paiement refusé",
+  expired: "Paiement expiré",
+};
+
+const paymentMethodLabel = (method) => method === "mobile_money" ? "Mobile Money" : "Paiement à la livraison";
+const paymentStatusLabel = (status) => PAYMENT_STATUS[status] || status || "Inconnu";
+
 export default function AdminOrderDetail() {
   const { id } = useParams();
   const [order, setOrder] = useState(null);
@@ -33,6 +45,20 @@ export default function AdminOrderDetail() {
       const meta = orderStatus(status);
       const note = window.prompt(`Note pour le passage à « ${meta.label} » (facultatif) :`, "") || null;
       setOrder(await adminApi.updateOrderStatus(id, { status, note }));
+      setError(null);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  async function markPaymentReceived() {
+    if (updating) return;
+    setUpdating(true);
+    try {
+      const note = window.prompt("Note de paiement (facultatif) :", "") || null;
+      setOrder(await adminApi.markOrderPaymentReceived(id, { note }));
       setError(null);
     } catch (err) {
       setError(err);
@@ -132,8 +158,13 @@ export default function AdminOrderDetail() {
           </AdminCard>
           <AdminCard>
             <p className="eyebrow mb-3">Paiement</p>
-            <p className="text-sm text-fg">Paiement à la livraison</p>
-            <p className="mt-1 text-xs text-muted">Statut : {order.payment_status}</p>
+            <p className="text-sm text-fg">{paymentMethodLabel(order.payment_method)}</p>
+            <p className="mt-1 text-xs text-muted">Statut : {paymentStatusLabel(order.payment_status)}</p>
+            {order.payment_method === "cash_on_delivery" && order.status === "delivered" && order.payment_status !== "paid" && (
+              <button type="button" disabled={updating} className={`mt-4 w-full ${buttonClass}`} onClick={markPaymentReceived}>
+                {updating ? "Mise à jour…" : "Marquer le paiement reçu"}
+              </button>
+            )}
           </AdminCard>
         </div>
       </div>

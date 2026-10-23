@@ -5,10 +5,11 @@ import { formatPrice } from "../../data/catalog.js";
 import { InlineError, InlineLoading } from "../../components/Shared.jsx";
 
 const labels = {
-  confirmed: "Confirmée",
+  pending_confirmation: "Commande reçue",
+  confirmed: "Prise en charge",
   preparing: "En préparation",
-  shipped: "Expédiée",
-  delivered: "Livrée",
+  shipped: "Colis envoyé",
+  delivered: "Livraison effectuée",
   cancelled: "Annulée",
   pending_payment: "Paiement en attente",
 };
