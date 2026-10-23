@@ -78,6 +78,20 @@ def test_customer_browser_session_uses_cookie_and_csrf(client, seeded_db):
     assert allowed.status_code == 201
 
 
+def test_admin_cookie_does_not_block_public_order_with_csrf(client, seeded_db):
+    _create_admin()
+    login = client.post(
+        "/api/v1/admin/auth/login",
+        json={"email": "security@myintimy.test", "password": "a-very-safe-password"},
+    )
+    assert login.status_code == 200
+
+    # A storefront order is public (or uses a customer session), so an unrelated
+    # admin session must not impose the admin CSRF token on this request.
+    response = client.post("/api/v1/orders", json={})
+    assert response.status_code == 422
+
+
 def test_login_rate_limit_returns_429(client):
     for _ in range(5):
         response = client.post(

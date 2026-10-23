@@ -30,8 +30,6 @@ def _role_for_request(request: Request) -> str | None:
         return "admin"
     if customer_cookie:
         return "customer"
-    if admin_cookie:
-        return "admin"
     return None
 
 
