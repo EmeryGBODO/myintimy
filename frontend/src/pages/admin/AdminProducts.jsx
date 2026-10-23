@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "../../api/admin.js";
 import {
@@ -19,7 +19,7 @@ export default function AdminProducts() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  async function load(search = q) {
+  const load = useCallback(async (search = q) => {
     setLoading(true);
     setError(null);
     try {
@@ -30,7 +30,7 @@ export default function AdminProducts() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [q]);
 
   useEffect(() => {
     load("");
@@ -43,7 +43,7 @@ export default function AdminProducts() {
         subtitle={`${items.length} produit(s) affiché(s).`}
         action={<Link to="/admin/products/new" className={buttonClass}>Ajouter un produit</Link>}
       />
-      <AdminError error={error} />
+      <AdminError error={error} onRetry={() => load()} />
 
       <form
         onSubmit={(event) => {
@@ -66,7 +66,7 @@ export default function AdminProducts() {
 
       <AdminCard className="p-0">
         {loading ? (
-          <AdminLoading />
+          <AdminLoading message="Chargement des produits…" />
         ) : items.length === 0 ? (
           <AdminEmpty>Aucun produit ne correspond à votre recherche.</AdminEmpty>
         ) : (

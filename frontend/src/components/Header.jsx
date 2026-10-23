@@ -6,7 +6,7 @@ import { IconBag, IconHeart, IconMenu, IconMoon, IconSearch, IconSun, IconUser }
 export function ThemeButton({ className = "" }) {
   const { isDark, toggleTheme } = useShop();
   return (
-    <button onClick={toggleTheme} className={`icon-btn ${className}`} aria-label={isDark ? "Passer en mode clair" : "Passer en mode sombre"}>
+    <button type="button" onClick={toggleTheme} className={`icon-btn ${className}`} aria-label={isDark ? "Passer en mode clair" : "Passer en mode sombre"}>
       {isDark ? <IconSun /> : <IconMoon />}
     </button>
   );
@@ -25,7 +25,7 @@ export default function Header() {
       <header className="sticky top-[env(safe-area-inset-top,0px)] z-40 border-b border-line bg-glass backdrop-blur-xl transition-colors duration-500">
         <div className="wrap grid h-16 grid-cols-[1fr_auto_1fr] items-center lg:h-[76px]">
           <div className="flex items-center">
-            <button className="icon-btn xl:hidden" onClick={() => openPanel("menu")} aria-label="Ouvrir le menu"><IconMenu /></button>
+            <button type="button" className="icon-btn xl:hidden" onClick={() => openPanel("menu")} aria-label="Ouvrir le menu"><IconMenu /></button>
             <nav className="hidden items-center gap-6 whitespace-nowrap xl:flex 2xl:gap-8" aria-label="Navigation principale">
               {NAV.map((n) => (
                 <NavLink key={n.to} to={n.to} className={({ isActive }) => `lnk ${isActive ? "active" : ""} ${n.couple ? "text-accent" : ""}`}>{n.label}</NavLink>
@@ -39,9 +39,9 @@ export default function Header() {
           <div className="flex items-center justify-end gap-1">
             <button className="icon-btn" onClick={() => openPanel("search")} aria-label="Rechercher"><IconSearch /></button>
             <ThemeButton className="hidden sm:grid" />
-            <Link to="/favoris" className="icon-btn relative hidden sm:grid" aria-label="Favoris"><IconHeart /><Badge n={favs.length} /></Link>
+            <Link to="/favoris" className="icon-btn relative hidden sm:grid" aria-label={favs.length > 0 ? `Favoris (${favs.length})` : "Favoris"}><IconHeart /><Badge n={favs.length} /></Link>
             <Link to="/compte" className="icon-btn hidden sm:grid" aria-label="Mon compte"><IconUser /></Link>
-            <button className="icon-btn relative" onClick={() => openPanel("cart")} aria-label="Panier"><IconBag /><Badge n={cartCount} /></button>
+            <button type="button" className="icon-btn relative" onClick={() => openPanel("cart")} aria-label={cartCount > 0 ? `Panier (${cartCount})` : "Panier"}><IconBag /><Badge n={cartCount} /></button>
           </div>
         </div>
       </header>

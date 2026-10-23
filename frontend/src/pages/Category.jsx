@@ -38,7 +38,7 @@ export default function Category({ cat }) {
         <div className="mb-10 flex flex-wrap items-center gap-x-7 gap-y-3.5 border-y border-line py-[18px]">
           {!isCouple && (
             <div className="flex flex-wrap items-center gap-2"><span className={label}>Taille</span>
-              {SIZES.map((s) => <button key={s} className={`chip ${size === s ? "on" : ""}`} onClick={() => setSize(size === s ? null : s)}>{s}</button>)}
+              {SIZES.map((s) => <button key={s} type="button" aria-pressed={size === s} aria-label={`Taille ${s}`} className={`chip ${size === s ? "on" : ""}`} onClick={() => setSize(size === s ? null : s)}>{s}</button>)}
             </div>
           )}
           <div className="flex flex-wrap items-center gap-2"><span className={label}>Couleur</span>

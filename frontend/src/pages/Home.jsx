@@ -124,7 +124,7 @@ export default function Home() {
           <input id="nl" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Votre adresse e-mail" className="min-w-0 flex-1 border-0 bg-transparent px-1 py-4 text-[15px] outline-none" />
           <button type="submit" className="px-2 font-sans text-[11px] font-normal uppercase tracking-[.22em]">S’inscrire</button>
         </form>
-        <p className="min-h-[1.5em] font-display text-lg italic text-accent">{msg}</p>
+        <p className="min-h-[1.5em] font-display text-lg italic text-accent" role="status" aria-live="polite">{msg}</p>
       </section>
     </>
   );

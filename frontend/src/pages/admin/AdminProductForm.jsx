@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { adminApi, mediaUrl } from "../../api/admin.js";
+import { extractFieldErrors } from "../../api/errors.js";
+import { validatePositiveInt, validateRequiredField } from "../../utils/validation.js";
 import {
   AdminCard,
   AdminError,
@@ -49,6 +51,8 @@ export default function AdminProductForm() {
   const [colors, setColors] = useState([]);
   const [sizes, setSizes] = useState([]);
   const [variant, setVariant] = useState(EMPTY_VARIANT);
+  const [productErrors, setProductErrors] = useState({});
+  const [variantErrors, setVariantErrors] = useState({});
   const [editingVariantId, setEditingVariantId] = useState(null);
   const [variantEdit, setVariantEdit] = useState(null);
   const [imageFile, setImageFile] = useState(null);
@@ -106,8 +110,27 @@ export default function AdminProductForm() {
 
   async function save(event) {
     event.preventDefault();
-    setBusy(true);
+    if (busy) return;
+
     setError(null);
+
+    const errors = {};
+    const nameErr = validateRequiredField(form.name, "Le nom du produit");
+    if (nameErr) errors.name = nameErr;
+
+    const catErr = validateRequiredField(form.category_id, "La catégorie");
+    if (catErr) errors.category_id = catErr;
+
+    const typeErr = validateRequiredField(form.type, "Le type de produit");
+    if (typeErr) errors.type = typeErr;
+
+    const priceErr = validatePositiveInt(form.price_xof, "Le prix FCFA");
+    if (priceErr) errors.price_xof = priceErr;
+
+    setProductErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setBusy(true);
 
     try {
       const payload = { ...form, price_xof: Number(form.price_xof) };
@@ -121,6 +144,8 @@ export default function AdminProductForm() {
       if (isNew) navigate(`/admin/products/${saved.id}`, { replace: true });
       else setProduct(saved);
     } catch (err) {
+      const beErrors = extractFieldErrors(err);
+      if (Object.keys(beErrors).length > 0) setProductErrors(beErrors);
       setError(err);
     } finally {
       setBusy(false);
@@ -139,7 +164,27 @@ export default function AdminProductForm() {
 
   async function addVariant(event) {
     event.preventDefault();
-    if (!productId) return;
+    if (busy || !productId) return;
+
+    const errors = {};
+    const colorErr = validateRequiredField(variant.color_id, "La couleur");
+    if (colorErr) errors.color_id = colorErr;
+
+    const skuErr = validateRequiredField(variant.sku, "Le code SKU");
+    if (skuErr) errors.sku = skuErr;
+
+    const stockErr = validatePositiveInt(variant.initial_stock, "Le stock initial");
+    if (stockErr) errors.initial_stock = stockErr;
+
+    if (variant.price_xof !== "" && variant.price_xof !== null && variant.price_xof !== undefined) {
+      const priceErr = validatePositiveInt(variant.price_xof, "Le prix spécifique", { required: false });
+      if (priceErr) errors.price_xof = priceErr;
+    }
+
+    setVariantErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setBusy(true);
 
     try {
       const payload = {
@@ -151,9 +196,14 @@ export default function AdminProductForm() {
 
       await adminApi.createVariant(productId, payload);
       setVariant(EMPTY_VARIANT);
+      setVariantErrors({});
       await reloadProduct(productId);
     } catch (err) {
+      const beErrors = extractFieldErrors(err);
+      if (Object.keys(beErrors).length > 0) setVariantErrors(beErrors);
       setError(err);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -185,7 +235,8 @@ export default function AdminProductForm() {
 
   async function saveVariantEdit(event, variantId) {
     event.preventDefault();
-    if (!variantEdit) return;
+    if (busy || !variantEdit) return;
+    setBusy(true);
 
     try {
       await adminApi.updateVariant(variantId, {
@@ -199,6 +250,8 @@ export default function AdminProductForm() {
       await reloadProduct(productId);
     } catch (err) {
       setError(err);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -216,7 +269,8 @@ export default function AdminProductForm() {
 
   async function uploadImage(event) {
     event.preventDefault();
-    if (!imageFile) return;
+    if (busy || !imageFile) return;
+    setBusy(true);
 
     try {
       const data = new FormData();
@@ -229,6 +283,8 @@ export default function AdminProductForm() {
       await reloadProduct(productId);
     } catch (err) {
       setError(err);
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -251,7 +307,7 @@ export default function AdminProductForm() {
     }
   }
 
-  if (loading) return <AdminLoading />;
+  if (loading) return <AdminLoading message="Chargement du produit…" />;
 
   return (
     <>
@@ -260,21 +316,45 @@ export default function AdminProductForm() {
         subtitle={isNew ? "Créer la fiche produit avant d’ajouter variantes et images." : `Prix actuel : ${formatXof(product?.price_xof)}`}
         action={<Link className={ghostButtonClass} to="/admin/products">Retour aux produits</Link>}
       />
-      <AdminError error={error} />
+      <AdminError error={error} onRetry={id ? () => reloadProduct(id) : undefined} />
 
-      <form onSubmit={save}>
+      <form onSubmit={save} noValidate>
         <AdminCard>
           <div className="grid gap-5 md:grid-cols-2 md:gap-x-7">
             <label className="block">
-              <span className="field-label">Nom</span>
-              <input required className={`${inputClass} mt-1`} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+              <span className="field-label">
+                Nom <span className="text-accent" aria-hidden="true">*</span>
+              </span>
+              <input
+                className={`${inputClass} mt-1 ${productErrors.name ? "border-danger focus:border-danger" : ""}`}
+                value={form.name}
+                onChange={(event) => {
+                  setForm({ ...form, name: event.target.value });
+                  if (productErrors.name) setProductErrors((c) => ({ ...c, name: null }));
+                }}
+              />
+              {productErrors.name && (
+                <p className="mt-1 text-xs text-danger" role="alert">{productErrors.name}</p>
+              )}
             </label>
 
             <label className="block">
-              <span className="field-label">Catégorie</span>
-              <select required className={`${inputClass} mt-1`} value={form.category_id} onChange={(event) => setForm({ ...form, category_id: event.target.value })}>
+              <span className="field-label">
+                Catégorie <span className="text-accent" aria-hidden="true">*</span>
+              </span>
+              <select
+                className={`${inputClass} mt-1 ${productErrors.category_id ? "border-danger focus:border-danger" : ""}`}
+                value={form.category_id}
+                onChange={(event) => {
+                  setForm({ ...form, category_id: event.target.value });
+                  if (productErrors.category_id) setProductErrors((c) => ({ ...c, category_id: null }));
+                }}
+              >
                 {categories.map((category) => <option key={category.id} value={category.id}>{category.title}</option>)}
               </select>
+              {productErrors.category_id && (
+                <p className="mt-1 text-xs text-danger" role="alert">{productErrors.category_id}</p>
+              )}
             </label>
 
             <label className="block">
@@ -283,13 +363,39 @@ export default function AdminProductForm() {
             </label>
 
             <label className="block">
-              <span className="field-label">Type</span>
-              <input required className={`${inputClass} mt-1`} value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value })} />
+              <span className="field-label">
+                Type <span className="text-accent" aria-hidden="true">*</span>
+              </span>
+              <input
+                className={`${inputClass} mt-1 ${productErrors.type ? "border-danger focus:border-danger" : ""}`}
+                value={form.type}
+                onChange={(event) => {
+                  setForm({ ...form, type: event.target.value });
+                  if (productErrors.type) setProductErrors((c) => ({ ...c, type: null }));
+                }}
+              />
+              {productErrors.type && (
+                <p className="mt-1 text-xs text-danger" role="alert">{productErrors.type}</p>
+              )}
             </label>
 
             <label className="block">
-              <span className="field-label">Prix FCFA</span>
-              <input required min="0" type="number" className={`${inputClass} mt-1`} value={form.price_xof} onChange={(event) => setForm({ ...form, price_xof: event.target.value })} />
+              <span className="field-label">
+                Prix FCFA <span className="text-accent" aria-hidden="true">*</span>
+              </span>
+              <input
+                min="0"
+                type="number"
+                className={`${inputClass} mt-1 ${productErrors.price_xof ? "border-danger focus:border-danger" : ""}`}
+                value={form.price_xof}
+                onChange={(event) => {
+                  setForm({ ...form, price_xof: event.target.value });
+                  if (productErrors.price_xof) setProductErrors((c) => ({ ...c, price_xof: null }));
+                }}
+              />
+              {productErrors.price_xof && (
+                <p className="mt-1 text-xs text-danger" role="alert">{productErrors.price_xof}</p>
+              )}
             </label>
 
             <label className="block">
@@ -338,13 +444,25 @@ export default function AdminProductForm() {
             <h2 className="font-display text-2xl font-light text-fg">Variantes et stock</h2>
             <p className="mt-1 text-sm text-muted">Ajoutez les déclinaisons puis ajustez leur stock individuellement.</p>
 
-            <form onSubmit={addVariant} className="mt-6 grid gap-4 sm:grid-cols-2">
+            <form onSubmit={addVariant} noValidate className="mt-6 grid gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="field-label">Couleur</span>
-                <select required className={`${inputClass} mt-1`} value={variant.color_id} onChange={(event) => setVariant({ ...variant, color_id: event.target.value })}>
+                <span className="field-label">
+                  Couleur <span className="text-accent" aria-hidden="true">*</span>
+                </span>
+                <select
+                  className={`${inputClass} mt-1 ${variantErrors.color_id ? "border-danger focus:border-danger" : ""}`}
+                  value={variant.color_id}
+                  onChange={(event) => {
+                    setVariant({ ...variant, color_id: event.target.value });
+                    if (variantErrors.color_id) setVariantErrors((c) => ({ ...c, color_id: null }));
+                  }}
+                >
                   <option value="">Choisir…</option>
                   {colors.filter((color) => color.is_active).map((color) => <option key={color.id} value={color.id}>{color.name}</option>)}
                 </select>
+                {variantErrors.color_id && (
+                  <p className="mt-1 text-xs text-danger" role="alert">{variantErrors.color_id}</p>
+                )}
               </label>
 
               <label className="block">
@@ -356,18 +474,58 @@ export default function AdminProductForm() {
               </label>
 
               <label className="block">
-                <span className="field-label">SKU</span>
-                <input required className={`${inputClass} mt-1`} placeholder={selectedColor ? `Ex. ...-${selectedColor.slug}` : "Référence variante"} value={variant.sku} onChange={(event) => setVariant({ ...variant, sku: event.target.value })} />
+                <span className="field-label">
+                  SKU <span className="text-accent" aria-hidden="true">*</span>
+                </span>
+                <input
+                  className={`${inputClass} mt-1 ${variantErrors.sku ? "border-danger focus:border-danger" : ""}`}
+                  placeholder={selectedColor ? `Ex. ...-${selectedColor.slug}` : "Référence variante"}
+                  value={variant.sku}
+                  onChange={(event) => {
+                    setVariant({ ...variant, sku: event.target.value });
+                    if (variantErrors.sku) setVariantErrors((c) => ({ ...c, sku: null }));
+                  }}
+                />
+                {variantErrors.sku && (
+                  <p className="mt-1 text-xs text-danger" role="alert">{variantErrors.sku}</p>
+                )}
               </label>
 
               <label className="block">
                 <span className="field-label">Prix spécifique</span>
-                <input className={`${inputClass} mt-1`} type="number" min="0" placeholder="Optionnel" value={variant.price_xof} onChange={(event) => setVariant({ ...variant, price_xof: event.target.value })} />
+                <input
+                  className={`${inputClass} mt-1 ${variantErrors.price_xof ? "border-danger focus:border-danger" : ""}`}
+                  type="number"
+                  min="0"
+                  placeholder="Optionnel"
+                  value={variant.price_xof}
+                  onChange={(event) => {
+                    setVariant({ ...variant, price_xof: event.target.value });
+                    if (variantErrors.price_xof) setVariantErrors((c) => ({ ...c, price_xof: null }));
+                  }}
+                />
+                {variantErrors.price_xof && (
+                  <p className="mt-1 text-xs text-danger" role="alert">{variantErrors.price_xof}</p>
+                )}
               </label>
 
               <label className="block">
-                <span className="field-label">Stock initial</span>
-                <input className={`${inputClass} mt-1`} type="number" min="0" value={variant.initial_stock} onChange={(event) => setVariant({ ...variant, initial_stock: event.target.value })} />
+                <span className="field-label">
+                  Stock initial <span className="text-accent" aria-hidden="true">*</span>
+                </span>
+                <input
+                  className={`${inputClass} mt-1 ${variantErrors.initial_stock ? "border-danger focus:border-danger" : ""}`}
+                  type="number"
+                  min="0"
+                  value={variant.initial_stock}
+                  onChange={(event) => {
+                    setVariant({ ...variant, initial_stock: event.target.value });
+                    if (variantErrors.initial_stock) setVariantErrors((c) => ({ ...c, initial_stock: null }));
+                  }}
+                />
+                {variantErrors.initial_stock && (
+                  <p className="mt-1 text-xs text-danger" role="alert">{variantErrors.initial_stock}</p>
+                )}
               </label>
 
               <div className="flex items-end">

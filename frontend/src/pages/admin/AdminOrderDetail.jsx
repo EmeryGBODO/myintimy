@@ -27,6 +27,7 @@ export default function AdminOrderDetail() {
   useEffect(() => { load(); }, [load]);
 
   async function transition(status) {
+    if (updating) return;
     setUpdating(true);
     try {
       const meta = orderStatus(status);
@@ -40,8 +41,8 @@ export default function AdminOrderDetail() {
     }
   }
 
-  if (loading) return <AdminLoading />;
-  if (!order) return <AdminError error={error || new Error("Commande introuvable.")} />;
+  if (loading) return <AdminLoading message="Chargement de la commande…" />;
+  if (!order) return <AdminError error={error || new Error("Commande introuvable.")} onRetry={load} />;
 
   const statusMeta = orderStatus(order.status);
   const transitions = ORDER_TRANSITIONS[order.status] || [];
@@ -53,7 +54,7 @@ export default function AdminOrderDetail() {
         subtitle={`Commande de ${order.customer_name} · ${formatDateTime(order.created_at)}`}
         action={<Link to="/admin/orders" className="lnk">Retour aux commandes</Link>}
       />
-      <AdminError error={error} />
+      <AdminError error={error} onRetry={load} />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,.6fr)]">
         <div className="grid gap-6">
@@ -64,7 +65,17 @@ export default function AdminOrderDetail() {
                 <div className="flex flex-wrap gap-2">
                   {transitions.map((status) => {
                     const meta = orderStatus(status);
-                    return <button key={status} type="button" disabled={updating} className={status === "cancelled" ? dangerButtonClass : buttonClass} onClick={() => transition(status)}>{meta.label}</button>;
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        disabled={updating}
+                        className={status === "cancelled" ? dangerButtonClass : buttonClass}
+                        onClick={() => transition(status)}
+                      >
+                        {updating ? "Mise à jour…" : meta.label}
+                      </button>
+                    );
                   })}
                 </div>
               )}

@@ -17,18 +17,28 @@ export default function Footer() {
             {[["nouveautes", "Nouveautés"], ["lingerie", "Lingerie"], ["vetements", "Vêtements"], ["nuit", "Nuit & Détente"], ["couple", "Univers Couple"]].map(([k, l]) => <li key={k}><Link className="hover:text-accent" to={`/categorie/${k}`}>{l}</Link></li>)}
           </ul></div>
           <div><H>Service client</H><ul className="grid gap-2.5 text-sm">
-            <li><button className="hover:text-accent" onClick={() => openPanel("sizes")}>Guide des tailles</button></li>
+            <li><button type="button" className="hover:text-accent" onClick={() => openPanel("sizes")}>Guide des tailles</button></li>
             <li><Link className="hover:text-accent" to="/livraison">Livraison discrète</Link></li>
-            <li><Link className="hover:text-accent" to="/livraison">Retours sous 14 jours</Link></li>
-            <li>WhatsApp : <span className="select-all">+229 01 00 00 00 00</span></li>
+            <li><Link className="hover:text-accent" to="/retours">Retours sous 14 jours</Link></li>
+            <li><Link className="hover:text-accent" to="/contact">Conseil & WhatsApp</Link></li>
           </ul></div>
           <div><H>Maison</H><ul className="grid gap-2.5 text-sm">
-            <li><Link className="hover:text-accent" to="/livraison">Nos engagements</Link></li>
+            <li><Link className="hover:text-accent" to="/contact">Nous contacter</Link></li>
             <li>Instagram · @myintimy</li><li>TikTok · @myintimy</li><li>Facebook · Myintimy</li>
           </ul></div>
         </div>
-        <div className="mt-14 flex flex-wrap justify-between gap-4 border-t border-line pt-6 text-xs tracking-wide text-muted">
-          <span>© 2026 Myintimy · Mentions légales · CGV · Confidentialité</span>
+        <div className="mt-14 flex flex-wrap items-center justify-between gap-4 border-t border-line pt-6 text-xs tracking-wide text-muted">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span>© 2026 Myintimy</span>
+            <span aria-hidden="true">·</span>
+            <Link to="/mentions-legales" className="hover:text-fg">Mentions légales</Link>
+            <span aria-hidden="true">·</span>
+            <Link to="/cgv" className="hover:text-fg">CGV</Link>
+            <span aria-hidden="true">·</span>
+            <Link to="/confidentialite" className="hover:text-fg">Confidentialité</Link>
+            <span aria-hidden="true">·</span>
+            <Link to="/retours" className="hover:text-fg">Retours & Remboursements</Link>
+          </div>
           <span>Vente réservée aux personnes majeures pour l’Univers Couple</span>
         </div>
       </div>

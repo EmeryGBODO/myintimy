@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+PHONE_REGEX = re.compile(r"^\+?[0-9\s.\-()]{5,30}$")
+EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 from app.schemas.payments import PaymentTransactionOut
 
@@ -24,6 +28,29 @@ class OrderCreateIn(BaseModel):
     neutral_packaging: bool = True
     payment_method: Literal["cash_on_delivery", "mobile_money"] = "cash_on_delivery"
     items: list[OrderItemCreateIn] = Field(min_length=1, max_length=50)
+
+    @field_validator("customer_phone")
+    @classmethod
+    def check_phone(cls, v: str) -> str:
+        val = v.strip()
+        if not val or not PHONE_REGEX.match(val):
+            raise ValueError("Format de numéro de téléphone invalide.")
+        digits = re.sub(r"\D", "", val)
+        if len(digits) < 5 or len(digits) > 20:
+            raise ValueError("Le numéro de téléphone doit contenir entre 5 et 20 chiffres.")
+        return val
+
+    @field_validator("customer_email")
+    @classmethod
+    def check_email(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        val = v.strip()
+        if not val:
+            return None
+        if not EMAIL_REGEX.match(val):
+            raise ValueError("Format d'adresse e-mail invalide.")
+        return val.lower()
 
 
 class OrderItemOut(BaseModel):

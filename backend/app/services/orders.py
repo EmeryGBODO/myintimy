@@ -4,6 +4,7 @@ import secrets
 from datetime import datetime, timezone
 from uuid import UUID
 
+import logging
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ApiException
@@ -12,9 +13,12 @@ from app.models.client import CustomerUser
 from app.models.orders import Order, OrderItem, OrderStatusHistory
 from app.repositories.orders import OrderRepository
 from app.schemas.orders import OrderCreateIn
+from app.services.email import EmailService
 from app.services.kkiapay import KkiapayGateway
 from app.services.payments import PaymentMethod, PaymentService
 from app.services.shipping import ShippingService
+
+logger = logging.getLogger("myintimy.orders")
 
 
 class OrderStatus:
@@ -39,9 +43,16 @@ ALLOWED_TRANSITIONS = {
 
 
 class OrderService:
-    def __init__(self, db: Session) -> None:
+    def __init__(
+        self,
+        db: Session,
+        email_service: EmailService | None = None,
+        shipping_service: ShippingService | None = None,
+    ) -> None:
         self.db = db
         self.repository = OrderRepository(db)
+        self.email_service = email_service or EmailService()
+        self.shipping_service = shipping_service or ShippingService(db)
 
     def _reference(self) -> str:
         date_part = datetime.now(timezone.utc).strftime("%y%m%d")
@@ -114,15 +125,16 @@ class OrderService:
             )
             variant.reserved_quantity += quantity
 
-        shipping = ShippingService.calculate_fee(city=data.city, subtotal_xof=subtotal)
+        zone = self.shipping_service.get_zone(data.city)
+        shipping = self.shipping_service.calculate_fee(city=data.city, subtotal_xof=subtotal)
         is_mobile_money = data.payment_method == PaymentMethod.MOBILE_MONEY
         initial_status = OrderStatus.PENDING_PAYMENT if is_mobile_money else OrderStatus.CONFIRMED
         initial_payment_status = "pending" if is_mobile_money else "cash_on_delivery"
         order = Order(
             reference=self._reference(),
             customer_id=customer.id if customer else None,
-            status=initial_status,
-            payment_method=data.payment_method,
+            delivery_zone_id=zone.id,
+            status=initial_status,            payment_method=data.payment_method,
             payment_status=initial_payment_status,
             customer_name=data.customer_name.strip(),
             customer_phone=data.customer_phone.strip(),
@@ -161,7 +173,20 @@ class OrderService:
         except Exception:
             self.db.rollback()
             raise
-        return self.get(order.id)
+
+        created_order = self.get(order.id)
+
+        try:
+            if created_order.customer_email:
+                self.email_service.send_order_confirmation(created_order)
+            self.email_service.send_admin_order_notification(created_order)
+        except Exception:
+            logger.exception(
+                "Échec lors de l'envoi des notifications e-mail pour la commande %s",
+                created_order.reference,
+            )
+
+        return created_order
 
     def get(self, order_id: UUID) -> Order:
         order = self.repository.get_by_id(order_id)

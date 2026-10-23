@@ -10,6 +10,7 @@ const NAV = [
   ["/admin/categories", "Catégories"],
   ["/admin/references", "Référentiels"],
   ["/admin/inventory", "Stocks"],
+  ["/admin/shipping", "Livraison"],
 ];
 
 function ThemeToggle() {

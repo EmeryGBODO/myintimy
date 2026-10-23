@@ -1,8 +1,8 @@
 from functools import lru_cache
-
 from typing import Literal
+import re
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -42,6 +42,26 @@ class Settings(BaseSettings):
     payment_verify_ip_max_attempts: int = 20
     payment_verify_ip_window_seconds: int = 600
 
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = Field(default="", validation_alias=AliasChoices("smtp_user", "smtp_username"))
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_timeout: int = 10
+    mail_from_email: str = "contact@myintimy.com"
+    mail_from_name: str = "Myintimy"
+    mail_admin_email: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "mail_admin_email",
+            "admin_notification_emails",
+            "admin_notification_email",
+            "admin_emails",
+        ),
+    )
+    frontend_url: str = "http://localhost:5173"
+
     @property
     def secure_cookies(self) -> bool:
         return self.app_env.lower() not in {"development", "test"}
@@ -57,6 +77,16 @@ class Settings(BaseSettings):
             raise RuntimeError("FRONTEND_ORIGINS doit contenir uniquement les origines exactes autorisées en production.")
         if self.auth_cookie_samesite == "none" and not self.secure_cookies:
             raise RuntimeError("SameSite=None nécessite des cookies Secure.")
+
+    @property
+    def admin_recipients(self) -> list[str]:
+        if not self.mail_admin_email:
+            return []
+        return [
+            email.strip()
+            for email in re.split(r"[,;\s]+", self.mail_admin_email.strip())
+            if email and "@" in email
+        ]
 
     @property
     def cors_origins(self) -> list[str]:

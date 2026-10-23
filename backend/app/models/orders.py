@@ -31,6 +31,7 @@ class Order(Base):
     city: Mapped[str] = mapped_column(String(120), nullable=False)
     area: Mapped[str] = mapped_column(String(160), nullable=False)
     address: Mapped[str] = mapped_column(Text, nullable=False)
+    delivery_zone_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("delivery_zones.id", ondelete="SET NULL"), nullable=True, index=True)
     neutral_packaging: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     subtotal_xof: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -42,6 +43,7 @@ class Order(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     customer = relationship("CustomerUser", back_populates="orders")
+    delivery_zone = relationship("DeliveryZone")
     items: Mapped[list[OrderItem]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderItem.created_at")
     history: Mapped[list[OrderStatusHistory]] = relationship(back_populates="order", cascade="all, delete-orphan", order_by="OrderStatusHistory.created_at")
     payments = relationship("PaymentTransaction", back_populates="order", cascade="all, delete-orphan", order_by="PaymentTransaction.created_at")

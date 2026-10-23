@@ -1,4 +1,6 @@
+import { useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { applySeo, getSeoMetadata } from "../utils/seo.js";
 import AdminProvider from "./AdminProvider.jsx";
 import { useAdmin } from "./admin-context.js";
 import AdminLayout from "./AdminLayout.jsx";
@@ -11,6 +13,7 @@ import AdminOrderDetail from "../pages/admin/AdminOrderDetail.jsx";
 import AdminProductForm from "../pages/admin/AdminProductForm.jsx";
 import AdminProducts from "../pages/admin/AdminProducts.jsx";
 import AdminReferences from "../pages/admin/AdminReferences.jsx";
+import AdminShipping from "../pages/admin/AdminShipping.jsx";
 
 function ProtectedAdmin() {
   const { authenticated, loading } = useAdmin();
@@ -43,6 +46,7 @@ function RoutesTree() {
         <Route path="/admin/categories" element={<AdminCategories />} />
         <Route path="/admin/references" element={<AdminReferences />} />
         <Route path="/admin/inventory" element={<AdminInventory />} />
+        <Route path="/admin/shipping" element={<AdminShipping />} />
       </Route>
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
@@ -50,6 +54,12 @@ function RoutesTree() {
 }
 
 export default function AdminRoutes() {
+  const location = useLocation();
+
+  useEffect(() => {
+    const meta = getSeoMetadata(location.pathname);
+    applySeo(meta);
+  }, [location.pathname]);
   return (
     <AdminProvider>
       <RoutesTree />

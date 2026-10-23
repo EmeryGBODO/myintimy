@@ -4,12 +4,13 @@ import { formatPrice } from "../data/catalog.js";
 import { getProductColorMeta } from "../catalog/product-options.js";
 import ProductImage from "./ProductImage.jsx";
 import { IconBox, IconChat, IconHeart, IconLock, IconReturn } from "./Icons.jsx";
+import { formatApiErrorMessage } from "../api/errors.js";
 
 export function FavButton({ id, className = "" }) {
   const { isFav, toggleFav } = useShop();
   const on = isFav(id);
   return (
-    <button onClick={(e) => { e.preventDefault(); toggleFav(id); }} aria-pressed={on} aria-label={on ? "Retirer des favoris" : "Ajouter aux favoris"} className={className}>
+    <button type="button" onClick={(e) => { e.preventDefault(); toggleFav(id); }} aria-pressed={on} aria-label={on ? "Retirer des favoris" : "Ajouter aux favoris"} className={className}>
       <IconHeart className={`h-[17px] w-[17px] ${on ? "fill-accent stroke-accent" : ""}`} />
     </button>
   );
@@ -92,6 +93,36 @@ export function EmptyState({ title, text, children }) {
       <h3 className="text-[30px] text-fg">{title}</h3>
       <p>{text}</p>
       {children}
+    </div>
+  );
+}
+
+export function InlineLoading({ message = "Chargement…" }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-12 text-center text-sm text-muted">
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-line-strong border-t-accent" aria-hidden="true" />
+      <span>{message}</span>
+    </div>
+  );
+}
+
+export function InlineError({ error, onRetry }) {
+  if (!error) return null;
+  const message = formatApiErrorMessage(error);
+  return (
+    <div className="border border-danger/25 bg-danger-soft p-5 text-sm text-danger" role="alert">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <span>{message}</span>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="btn btn-ghost shrink-0 !border-danger/40 !py-1.5 !text-xs !text-danger hover:!bg-danger hover:!text-bg"
+          >
+            Réessayer
+          </button>
+        )}
+      </div>
     </div>
   );
 }

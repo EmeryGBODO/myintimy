@@ -11,19 +11,66 @@ import { openKkiapayMobileMoney } from "../payments/kkiapay.js";
 import { useShop } from "../context/shop-context.js";
 import { useClient } from "../account/client-context.js";
 import { customerApi } from "../api/customer.js";
+import { shippingApi } from "../api/shipping.js";
+import { extractFieldErrors, formatApiErrorMessage } from "../api/errors.js";
+import {
+  validateEmailField,
+  validatePhoneField,
+  validateRequiredField,
+} from "../utils/validation.js";
 
-function Field({ id, label, ...props }) {
-  return <div className="grid min-w-0 gap-1.5"><label htmlFor={id} className="field-label">{label}</label><input id={id} className="field" {...props} /></div>;
+function Field({ id, label, required = false, error, ...props }) {
+  return (
+    <div className="grid min-w-0 gap-1.5">
+      <label htmlFor={id} className="field-label">
+        {label}
+        {required && <span className="ml-1 text-accent" aria-hidden="true">*</span>}
+      </label>
+      <input
+        id={id}
+        className={`field ${error ? "border-danger focus:border-danger" : ""}`}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${id}-error` : undefined}
+        {...props}
+      />
+      {error && (
+        <p id={`${id}-error`} className="text-xs text-danger" role="alert">
+          {error}
+        </p>
+      )}
+    </div>
+  );
 }
+
 const Legend = ({ children }) => <legend className="mb-2.5 p-0 font-display text-[28px] font-light">{children}</legend>;
-function cartVariant(product, item) { return (product?.variants || []).find((variant) => (variant.color?.slug || variant.color_slug) === item.color && (variant.size?.code || variant.size_code || null) === (item.size || null)); }
-function colorLabel(product, slug) { return product?.colorDetails?.find((color) => color.slug === slug)?.name || slug; }
+
+function cartVariant(product, item) {
+  return (product?.variants || []).find((variant) => {
+    const color = variant.color?.slug || variant.color_slug;
+    const size = variant.size?.code || variant.size_code || null;
+    return color === item.color && size === (item.size || null);
+  });
+}
+
+function colorLabel(product, slug) {
+  return product?.colorDetails?.find((color) => color.slug === slug)?.name || slug;
+}
 
 export default function Checkout() {
   const { cart, subtotal, clearCart } = useShop();
   const { customer } = useClient();
   const { getProduct, source } = useCatalog();
-  const [form, setForm] = useState({ name: "", phone: "", email: "", city: "Cotonou", area: "", address: "", neutral: true, pay: "cash_on_delivery" });
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    city: "Cotonou",
+    area: "",
+    address: "",
+    neutral: true,
+    pay: "cash_on_delivery",
+  });
+  const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState("");
   const [order, setOrder] = useState(null);
   const [pendingOrder, setPendingOrder] = useState(null);
@@ -31,36 +78,100 @@ export default function Checkout() {
   const [paymentStage, setPaymentStage] = useState("");
   const [addresses, setAddresses] = useState([]);
   const [kkiapay, setKkiapay] = useState({ enabled: false, public_key: null, sandbox: true, session_minutes: 15 });
+  const [deliveryZones, setDeliveryZones] = useState([]);
 
-  useEffect(() => { paymentsApi.kkiapayConfig().then(setKkiapay).catch(() => setKkiapay({ enabled: false, public_key: null, sandbox: true, session_minutes: 15 })); }, []);
+  useEffect(() => {
+    shippingApi.zones().then((items) => {
+      if (Array.isArray(items) && items.length > 0) setDeliveryZones(items);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    paymentsApi.kkiapayConfig()
+      .then(setKkiapay)
+      .catch(() => setKkiapay({ enabled: false, public_key: null, sandbox: true, session_minutes: 15 }));
+  }, []);
   useEffect(() => {
     if (!customer) return undefined;
-    setForm((current) => ({ ...current, name: current.name || customer.full_name || "", phone: current.phone || customer.phone || "", email: current.email || customer.email || "" }));
-    customerApi.addresses.list().then((items) => { setAddresses(items); const preferred = items.find((item) => item.is_default); if (preferred) setForm((current) => ({ ...current, name: current.name || preferred.recipient_name, phone: current.phone || preferred.phone, city: preferred.city, area: preferred.area, address: preferred.address })); }).catch(() => {});
+    setForm((current) => ({
+      ...current,
+      name: current.name || customer.full_name || "",
+      phone: current.phone || customer.phone || "",
+      email: current.email || customer.email || "",
+    }));
+    customerApi.addresses.list().then((items) => {
+      setAddresses(items);
+      const preferred = items.find((item) => item.is_default);
+      if (preferred) {
+        setForm((current) => ({
+          ...current,
+          name: current.name || preferred.recipient_name,
+          phone: current.phone || preferred.phone,
+          city: preferred.city,
+          area: preferred.area,
+          address: preferred.address,
+        }));
+      }
+    }).catch(() => {});
     return undefined;
   }, [customer?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const payments = useMemo(() => {
     const items = [["cash_on_delivery", "Paiement à la livraison", "Le règlement est effectué à la réception du colis."]];
-    if (kkiapay.enabled) items.push(["mobile_money", "Mobile Money", "MTN MoMo / Moov Money. Validez ensuite la demande de paiement directement sur votre téléphone auprès de votre opérateur."]);
+    if (kkiapay.enabled) {
+      items.push(["mobile_money", "Mobile Money", "MTN MoMo / Moov Money. Validez ensuite la demande de paiement sur votre téléphone."]);
+    }
     return items;
   }, [kkiapay.enabled]);
-  const set = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.type === "checkbox" ? event.target.checked : event.target.value }));
-  const rows = useMemo(() => cart.map((item) => { const product = getProduct(item.id); return { item, product, variant: cartVariant(product, item), unitPrice: getCartItemUnitPrice(product, item) }; }), [cart, getProduct]);
+  const set = (key) => (event) => {
+    const val = event.target.type === "checkbox" ? event.target.checked : event.target.value;
+    setForm((current) => ({
+      ...current,
+      [key]: val,
+    }));
+    if (fieldErrors[key]) {
+      setFieldErrors((current) => ({ ...current, [key]: null }));
+    }
+  };
+
+  const rows = useMemo(() => cart.map((item) => {
+    const product = getProduct(item.id);
+    return {
+      item,
+      product,
+      variant: cartVariant(product, item),
+      unitPrice: getCartItemUnitPrice(product, item),
+    };
+  }), [cart, getProduct]);
 
   async function completeMobilePayment(created) {
     const payment = created.payments?.find((item) => item.provider === "kkiapay" && item.method === "mobile_money");
-    if (!payment || !kkiapay.enabled || !kkiapay.public_key) throw new Error("Le paiement Mobile Money n'est pas disponible.");
+    if (!payment || !kkiapay.enabled || !kkiapay.public_key) {
+      throw new Error("Le paiement Mobile Money n'est pas disponible.");
+    }
     if (payment.expires_at && new Date(payment.expires_at).getTime() <= Date.now()) {
       setPendingOrder(null);
       throw new Error("La session de paiement a expiré. Recommencez la commande pour réserver de nouveau le stock.");
     }
     setPaymentStage("Attente de la validation du paiement sur votre téléphone…");
-    const result = await openKkiapayMobileMoney({ amount: created.total_xof, publicKey: kkiapay.public_key, sandbox: kkiapay.sandbox, customerName: created.customer_name, phone: created.customer_phone, email: created.customer_email, paymentId: payment.id, orderReference: created.reference });
-    const transactionId = result?.transactionId;
-    if (!transactionId) throw new Error("Kkiapay n'a pas retourné de référence de transaction.");
+    const result = await openKkiapayMobileMoney({
+      amount: created.total_xof,
+      publicKey: kkiapay.public_key,
+      sandbox: kkiapay.sandbox,
+      customerName: created.customer_name,
+      phone: created.customer_phone,
+      email: created.customer_email,
+      paymentId: payment.id,
+      orderReference: created.reference,
+    });
+    if (!result?.transactionId) {
+      throw new Error("Kkiapay n'a pas retourné de référence de transaction.");
+    }
     setPaymentStage("Vérification sécurisée du paiement…");
-    const verified = await paymentsApi.verifyKkiapay({ payment_id: payment.id, transaction_id: transactionId });
+    const verified = await paymentsApi.verifyKkiapay({
+      payment_id: payment.id,
+      transaction_id: result.transactionId,
+    });
     if (verified.payment_status === "paid_review") {
       setOrder(verified);
       setPendingOrder(null);
@@ -68,42 +179,305 @@ export default function Checkout() {
       window.scrollTo(0, 0);
       return;
     }
-    if (verified.payment_status !== "paid" || verified.status !== "confirmed") throw new Error("Le paiement n'a pas encore été confirmé par le serveur.");
+    if (verified.payment_status !== "paid" || verified.status !== "confirmed") {
+      throw new Error("Le paiement n'a pas encore été confirmé par le serveur.");
+    }
     setOrder(verified);
     setPendingOrder(null);
     clearCart();
     window.scrollTo(0, 0);
   }
 
-  if (order) return <section className="wrap grid justify-items-center gap-5 py-20 text-center lg:py-36"><p className="eyebrow">Commande enregistrée</p><h1 className="text-[clamp(40px,6vw,76px)]">Merci, <span className="ital">{order.customer_name.split(" ")[0]}</span></h1><p className="border border-line-strong px-[18px] py-3 font-sans text-xs font-normal uppercase tracking-[.24em]">{order.reference}</p><p className="max-w-[52ch] text-muted">{order.payment_status === "paid_review" ? "Le paiement a bien été reçu après l'expiration de la réservation. La commande doit être vérifiée par notre équipe avant traitement." : order.payment_method === "mobile_money" ? "Votre paiement Mobile Money a été vérifié par le serveur et votre commande est maintenant validée." : "Votre commande est confirmée et le stock correspondant a été réservé. Le règlement sera effectué à la livraison."}</p><p className="text-sm text-muted">Total confirmé : {formatPrice(order.total_xof)}</p>{customer ? <Link to={`/compte/commandes/${order.reference}`} className="btn btn-ghost">Voir ma commande</Link> : <Link to="/" className="btn btn-ghost">Retour à l’accueil</Link>}</section>;
-  if (!cart.length) return <section className="wrap grid justify-items-center gap-5 py-28 text-center"><h1 className="text-[clamp(40px,6vw,76px)]">Votre panier est vide</h1><p className="text-muted">Ajoutez une pièce pour passer commande.</p><Link to="/categorie/nouveautes" className="btn">Voir les nouveautés</Link></section>;
+  if (order) {
+    const paymentMessage = order.payment_status === "paid_review"
+      ? "Le paiement a été reçu après l’expiration de la réservation. Notre équipe doit le vérifier avant traitement."
+      : order.payment_method === "mobile_money"
+        ? "Votre paiement Mobile Money a été vérifié par le serveur et votre commande est validée."
+        : "Votre commande est confirmée et le stock correspondant a été réservé. Le règlement sera effectué à la livraison.";
+    return (
+      <section className="wrap grid justify-items-center gap-5 py-20 text-center lg:py-36">
+        <p className="eyebrow">Commande enregistrée</p>
+        <h1 className="text-[clamp(40px,6vw,76px)]">Merci, <span className="ital">{order.customer_name.split(" ")[0]}</span></h1>
+        <p className="border border-line-strong px-[18px] py-3 font-sans text-xs font-normal uppercase tracking-[.24em]">{order.reference}</p>
+        <p className="max-w-[52ch] text-muted">{paymentMessage}</p>
+        <p className="text-sm text-muted">Total confirmé : {formatPrice(order.total_xof)}</p>
+        {customer ? <Link to={"/compte/commandes/" + order.reference} className="btn btn-ghost">Voir ma commande</Link> : <Link to="/" className="btn btn-ghost">Retour à l’accueil</Link>}
+      </section>
+    );
+  }
+  if (!cart.length) {
+    return (
+      <section className="wrap grid justify-items-center gap-5 py-28 text-center">
+        <h1 className="text-[clamp(40px,6vw,76px)]">Votre panier est vide</h1>
+        <p className="text-muted">Ajoutez une pièce pour passer commande.</p>
+        <Link to="/categorie/nouveautes" className="btn">Voir les nouveautés</Link>
+        <div className="mt-8 flex flex-wrap justify-center gap-4 text-xs text-muted">
+          <Link to="/livraison" className="underline hover:text-fg">Infos livraison</Link>
+          <Link to="/cgv" className="underline hover:text-fg">Conditions Générales de Vente</Link>
+          <Link to="/confidentialite" className="underline hover:text-fg">Politique de Confidentialité</Link>
+          <Link to="/retours" className="underline hover:text-fg">Retours sous 14 jours</Link>
+        </div>
+      </section>
+    );
+  }
 
-  const fee = shippingFee(form.city, subtotal);
+  const matchedZone = deliveryZones.find(
+    (z) => z.name.toLowerCase() === form.city.toLowerCase() || z.code === form.city.toLowerCase(),
+  );
+  const fee = matchedZone
+    ? (matchedZone.free_shipping_threshold_xof !== null && subtotal >= matchedZone.free_shipping_threshold_xof ? 0 : matchedZone.fee_xof)
+    : shippingFee(form.city, subtotal);
   const total = subtotal + fee;
 
   async function submit(event) {
-    event.preventDefault(); setError(""); setPaymentStage("");
-    if (!form.name.trim() || !form.phone.trim() || !form.area.trim() || !form.address.trim()) { setError("Merci de compléter votre nom, téléphone, quartier et adresse."); return; }
-    if (source !== "api") { setError("Le service de commande est momentanément indisponible. Réessayez lorsque la boutique est reconnectée."); return; }
-    const unavailable = rows.find((row) => !row.product || !row.variant?.id); if (unavailable) { setError("Un article du panier n'est plus disponible. Retirez-le ou rechargez la boutique avant de continuer."); return; }
+    event.preventDefault();
+    if (submitting) return;
+    setError("");
+    setPaymentStage("");
+
+    const errors = {};
+    const nameErr = validateRequiredField(form.name, "Le prénom et nom");
+    if (nameErr) errors.name = nameErr;
+    else if (form.name.trim().length < 2) errors.name = "Le prénom et nom doit comporter au moins 2 caractères.";
+
+    const phoneErr = validatePhoneField(form.phone);
+    if (phoneErr) errors.phone = phoneErr;
+
+    if (form.email.trim()) {
+      const emailErr = validateEmailField(form.email, { required: false });
+      if (emailErr) errors.email = emailErr;
+    }
+
+    const areaErr = validateRequiredField(form.area, "Le quartier");
+    if (areaErr) errors.area = areaErr;
+
+    const addrErr = validateRequiredField(form.address, "L'adresse");
+    if (addrErr) errors.address = addrErr;
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    if (source !== "api") {
+      setError("Le service de commande est momentanément indisponible. Réessayez lorsque la boutique est reconnectée.");
+      return;
+    }
+    const unavailable = rows.find((row) => !row.product || !row.variant?.id);
+    if (unavailable) {
+      setError("Un article du panier n'est plus disponible. Retirez-le ou rechargez la boutique avant de continuer.");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      if (pendingOrder?.payment_method === "mobile_money") { await completeMobilePayment(pendingOrder); return; }
-      const created = await ordersApi.create({ customer_name: form.name.trim(), customer_phone: form.phone.trim(), customer_email: form.email.trim() || null, city: form.city, area: form.area.trim(), address: form.address.trim(), neutral_packaging: form.neutral, payment_method: form.pay, items: rows.map(({ item, variant }) => ({ variant_id: variant.id, quantity: item.qty })) });
-      if (form.pay === "mobile_money") { setPendingOrder(created); await completeMobilePayment(created); }
-      else { setOrder(created); clearCart(); window.scrollTo(0, 0); }
+      if (pendingOrder?.payment_method === "mobile_money") {
+        await completeMobilePayment(pendingOrder);
+        return;
+      }
+      const created = await ordersApi.create({
+        customer_name: form.name.trim(),
+        customer_phone: form.phone.trim(),
+        customer_email: form.email.trim() || null,
+        city: form.city,
+        area: form.area.trim(),
+        address: form.address.trim(),
+        neutral_packaging: form.neutral,
+        payment_method: form.pay,
+        items: rows.map(({ item, variant }) => ({ variant_id: variant.id, quantity: item.qty })),
+      });
+      if (form.pay === "mobile_money") {
+        setPendingOrder(created);
+        await completeMobilePayment(created);
+      } else {
+        setOrder(created);
+        clearCart();
+        window.scrollTo(0, 0);
+      }
     } catch (err) {
-      if (err?.code === "INSUFFICIENT_STOCK" || err?.code === "VARIANT_UNAVAILABLE") setError("Le stock a changé depuis l'ajout au panier. Rechargez la page et vérifiez les quantités disponibles.");
-      else setError(err?.message || "Impossible de finaliser la commande pour le moment.");
-    } finally { setSubmitting(false); setPaymentStage(""); }
+      const backendFieldErrors = extractFieldErrors(err);
+      if (Object.keys(backendFieldErrors).length > 0) {
+        const mapped = {};
+        if (backendFieldErrors.customer_name) mapped.name = backendFieldErrors.customer_name;
+        if (backendFieldErrors.customer_phone) mapped.phone = backendFieldErrors.customer_phone;
+        if (backendFieldErrors.customer_email) mapped.email = backendFieldErrors.customer_email;
+        if (backendFieldErrors.area) mapped.area = backendFieldErrors.area;
+        if (backendFieldErrors.address) mapped.address = backendFieldErrors.address;
+        if (backendFieldErrors.city) mapped.city = backendFieldErrors.city;
+        setFieldErrors(mapped);
+      }
+
+      if (err?.code === "UNKNOWN_DELIVERY_ZONE") {
+        setError("La zone ou ville de livraison sélectionnée n'est pas reconnue ou desservie.");
+      } else if (err?.code === "INACTIVE_DELIVERY_ZONE") {
+        setError("Cette zone de livraison est temporairement indisponible.");
+      } else if (err?.code === "INSUFFICIENT_STOCK" || err?.code === "VARIANT_UNAVAILABLE") {
+        setError("Le stock a changé depuis l'ajout au panier. Rechargez la page et vérifiez les quantités disponibles.");
+      } else {
+        setError(formatApiErrorMessage(err, "Impossible d'enregistrer la commande pour le moment."));
+      }
+    } finally {
+      setSubmitting(false);
+      setPaymentStage("");
+    }
   }
 
-  const buttonLabel = pendingOrder?.payment_method === "mobile_money" ? "Réessayer la confirmation Mobile Money" : form.pay === "mobile_money" ? `Payer · ${formatPrice(total)}` : `Confirmer · ${formatPrice(total)}`;
+  const buttonLabel = pendingOrder?.payment_method === "mobile_money"
+    ? "Réessayer la confirmation Mobile Money"
+    : form.pay === "mobile_money"
+      ? "Payer · " + formatPrice(total)
+      : "Confirmer · " + formatPrice(total);
+  return (
+    <>
+      <PageHead crumbs={[{ to: "/", label: "Accueil" }, { label: "Commande" }]} title={<>Finaliser la <span className="ital">commande</span></>} />
+      <section className="wrap grid items-start gap-10 pb-24 pt-6 md:grid-cols-[1.3fr_1fr] lg:gap-20">
+        <form onSubmit={submit} noValidate className="grid gap-[30px]">
+          <fieldset className="m-0 grid gap-4 border-0 p-0">
+            <Legend>Vos coordonnées</Legend>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field
+                id="name"
+                label="Prénom et nom"
+                required
+                autoComplete="name"
+                value={form.name}
+                onChange={set("name")}
+                disabled={submitting}
+                error={fieldErrors.name}
+              />
+              <Field
+                id="phone"
+                label="Téléphone"
+                required
+                type="tel"
+                placeholder="+229 97 00 00 00"
+                autoComplete="tel"
+                value={form.phone}
+                onChange={set("phone")}
+                disabled={submitting}
+                error={fieldErrors.phone}
+              />
+            </div>
+            <Field
+              id="email"
+              label="E-mail (facultatif)"
+              type="email"
+              autoComplete="email"
+              value={form.email}
+              onChange={set("email")}
+              disabled={submitting}
+              error={fieldErrors.email}
+            />
+          </fieldset>
 
-  return <><PageHead crumbs={[{ to: "/", label: "Accueil" }, { label: "Commande" }]} title={<>Finaliser la <span className="ital">commande</span></>} /><section className="wrap grid items-start gap-10 pb-24 pt-6 md:grid-cols-[1.3fr_1fr] lg:gap-20"><form onSubmit={submit} noValidate className="grid gap-[30px]">
-    <fieldset className="m-0 grid gap-4 border-0 p-0"><Legend>Vos coordonnées</Legend><div className="grid gap-4 sm:grid-cols-2"><Field id="name" label="Prénom et nom" autoComplete="name" value={form.name} onChange={set("name")} /><Field id="phone" label="Téléphone" type="tel" placeholder="+229" autoComplete="tel" value={form.phone} onChange={set("phone")} /></div><Field id="email" label="E-mail (facultatif)" type="email" autoComplete="email" value={form.email} onChange={set("email")} /></fieldset>
-    <fieldset className="m-0 grid gap-4 border-0 p-0"><Legend>Livraison</Legend>{addresses.length > 0 && <div className="grid gap-1.5"><label htmlFor="saved-address" className="field-label">Adresse enregistrée</label><select id="saved-address" className="field" defaultValue="" onChange={(event) => { const selected=addresses.find((item)=>item.id===event.target.value); if(selected)setForm((current)=>({...current,name:selected.recipient_name,phone:selected.phone,city:selected.city,area:selected.area,address:selected.address})); }}><option value="">Saisie manuelle</option>{addresses.map((item)=><option key={item.id} value={item.id}>{item.label} · {item.area}, {item.city}</option>)}</select></div>}<div className="grid gap-4 sm:grid-cols-2"><div className="grid min-w-0 gap-1.5"><label htmlFor="city" className="field-label">Ville</label><select id="city" className="field" value={form.city} onChange={set("city")}>{CITIES.map((city) => <option key={city}>{city}</option>)}</select></div><Field id="area" label="Quartier" value={form.area} onChange={set("area")} /></div><Field id="address" label="Adresse ou point de repère" value={form.address} onChange={set("address")} /><label className="flex items-start gap-3 text-sm"><input type="checkbox" checked={form.neutral} onChange={set("neutral")} className="mt-1 accent-accent" /><span>Emballage neutre, sans logo ni description du contenu</span></label></fieldset>
-    <fieldset className="m-0 grid gap-2.5 border-0 p-0"><Legend>Paiement</Legend>{payments.map(([value, name, hint]) => <label key={value} className={`flex cursor-pointer items-center gap-3.5 border px-[18px] py-4 transition-colors ${form.pay === value ? "border-fg" : "border-line"}`}><input type="radio" name="pay" value={value} checked={form.pay === value} onChange={set("pay")} disabled={Boolean(pendingOrder)} className="accent-accent" /><span>{name}<small className="block text-[12.5px] text-muted">{hint}</small></span></label>)}{!kkiapay.enabled && <p className="text-xs text-muted">Mobile Money sera proposé dès que le compte marchand Kkiapay et ses clés seront configurés.</p>}{pendingOrder && <p className="border border-line bg-surface p-3 text-xs text-muted">Commande {pendingOrder.reference} créée et stock réservé. Elle restera en attente tant que la confirmation Mobile Money n'est pas validée.</p>}</fieldset>
-    <p className="min-h-[1.2em] font-display text-base italic text-accent" role="status">{paymentStage}</p><p className="min-h-[1.2em] font-display text-base italic text-danger" role="alert">{error}</p><button type="submit" className="btn w-full" disabled={submitting}>{submitting ? (paymentStage || "Traitement…") : buttonLabel}</button>
-  </form><aside className="-order-1 grid gap-4 bg-surface p-6 md:sticky md:top-24 md:order-none lg:p-9"><h2 className="text-[28px]">Récapitulatif</h2>{rows.map(({ item, product, unitPrice }) => <div key={item.key} className="grid grid-cols-[56px_1fr_auto] gap-4 border-b border-line pb-4"><div className="aspect-[3/4] overflow-hidden"><ProductImage product={product} color={item.color} /></div><div><h3 className="text-base font-normal leading-tight">{product?.name || "Produit indisponible"}</h3><p className="text-[12.5px] text-muted">{colorLabel(product, item.color)}{item.size ? ` · ${item.size}` : ""} · ×{item.qty}</p></div><span className="text-[13px] tabular-nums">{formatPrice(unitPrice * item.qty)}</span></div>)}<div className="flex justify-between text-muted tabular-nums"><span>Sous-total</span><span>{formatPrice(subtotal)}</span></div><div className="flex justify-between text-muted tabular-nums"><span>Livraison ({form.city})</span><span>{fee ? formatPrice(fee) : "Offerte"}</span></div><div className="flex justify-between border-t border-line pt-3.5 tabular-nums"><span>Total estimé</span><b className="text-lg font-normal">{formatPrice(total)}</b></div><p className="text-[11px] leading-relaxed text-muted">Le montant final est recalculé et validé par le serveur au moment de la commande.</p></aside></section></>;
+          <fieldset className="m-0 grid gap-4 border-0 p-0">
+            <Legend>Livraison</Legend>
+            {addresses.length > 0 && (
+              <div className="grid gap-1.5">
+                <label htmlFor="saved-address" className="field-label">Adresse enregistrée</label>
+                <select
+                  id="saved-address"
+                  className="field"
+                  defaultValue=""
+                  disabled={submitting}
+                  onChange={(event) => {
+                    const selected = addresses.find((item) => item.id === event.target.value);
+                    if (selected) {
+                      setForm((current) => ({
+                        ...current,
+                        name: selected.recipient_name,
+                        phone: selected.phone,
+                        city: selected.city,
+                        area: selected.area,
+                        address: selected.address,
+                      }));
+                      setFieldErrors({});
+                    }
+                  }}
+                >
+                  <option value="">Saisie manuelle</option>
+                  {addresses.map((item) => (
+                    <option key={item.id} value={item.id}>{item.label} · {item.area}, {item.city}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid min-w-0 gap-1.5">
+                <label htmlFor="city" className="field-label">
+                  Ville <span className="text-accent" aria-hidden="true">*</span>
+                </label>
+                <select id="city" className="field" value={form.city} onChange={set("city")} disabled={submitting}>
+                  {(deliveryZones.length > 0 ? deliveryZones.map((z) => z.name) : CITIES).map((city) => <option key={city}>{city}</option>)}
+                </select>
+              </div>
+              <Field
+                id="area"
+                label="Quartier"
+                required
+                value={form.area}
+                onChange={set("area")}
+                disabled={submitting}
+                error={fieldErrors.area}
+              />
+            </div>
+            <Field
+              id="address"
+              label="Adresse ou point de repère"
+              required
+              value={form.address}
+              onChange={set("address")}
+              disabled={submitting}
+              error={fieldErrors.address}
+            />
+            <label className="flex items-start gap-3 text-sm">
+              <input type="checkbox" checked={form.neutral} onChange={set("neutral")} disabled={submitting} className="mt-1 accent-accent" />
+              <span>Emballage neutre, sans logo ni description du contenu</span>
+            </label>
+          </fieldset>
+
+          <fieldset className="m-0 grid gap-2.5 border-0 p-0">
+            <Legend>Paiement</Legend>
+            {payments.map(([value, name, hint]) => (
+              <label key={value} className={`flex cursor-pointer items-center gap-3.5 border px-[18px] py-4 transition-colors ${form.pay === value ? "border-fg" : "border-line"}`}>
+                <input type="radio" name="pay" value={value} checked={form.pay === value} onChange={set("pay")} disabled={submitting || Boolean(pendingOrder)} className="accent-accent" />
+                <span>{name}<small className="block text-[12.5px] text-muted">{hint}</small></span>
+              </label>
+            ))}
+            {!kkiapay.enabled && <p className="text-xs text-muted">Mobile Money sera proposé dès que le compte marchand Kkiapay et ses clés seront configurés.</p>}
+            {pendingOrder && <p className="border border-line bg-surface p-3 text-xs text-muted">Commande {pendingOrder.reference} créée et stock réservé. Elle restera en attente tant que la confirmation Mobile Money n’est pas validée.</p>}
+          </fieldset>
+          <p className="min-h-[1.2em] font-display text-base italic text-accent" role="status">{paymentStage}</p>
+          <p className="min-h-[1.2em] font-display text-base italic text-danger" role="alert">{error}</p>
+          <button type="submit" className="btn w-full" disabled={submitting}>
+            {submitting ? (paymentStage || "Traitement…") : buttonLabel}
+          </button>
+          <p className="mt-1 text-center text-[11.5px] leading-relaxed text-muted">
+            En confirmant votre commande, vous acceptez nos{" "}
+            <Link to="/cgv" target="_blank" className="underline hover:text-fg">Conditions Générales de Vente</Link>
+            {" "}et notre{" "}
+            <Link to="/confidentialite" target="_blank" className="underline hover:text-fg">Politique de Confidentialité</Link>.
+            Consultez nos{" "}
+            <Link to="/retours" target="_blank" className="underline hover:text-fg">modalités de retour sous 14 jours</Link>.
+          </p>
+        </form>
+
+        <aside className="-order-1 grid gap-4 bg-surface p-6 md:sticky md:top-24 md:order-none lg:p-9">
+          <h2 className="text-[28px]">Récapitulatif</h2>
+          {rows.map(({ item, product, unitPrice }) => (
+            <div key={item.key} className="grid grid-cols-[56px_1fr_auto] gap-4 border-b border-line pb-4">
+              <div className="aspect-[3/4] overflow-hidden"><ProductImage product={product} color={item.color} /></div>
+              <div>
+                <h3 className="text-base font-normal leading-tight">{product?.name || "Produit indisponible"}</h3>
+                <p className="text-[12.5px] text-muted">{colorLabel(product, item.color)}{item.size ? ` · ${item.size}` : ""} · ×{item.qty}</p>
+              </div>
+              <span className="text-[13px] tabular-nums">{formatPrice(unitPrice * item.qty)}</span>
+            </div>
+          ))}
+          <div className="flex justify-between text-muted tabular-nums"><span>Sous-total</span><span>{formatPrice(subtotal)}</span></div>
+          <div className="flex justify-between text-muted tabular-nums"><span>Livraison ({form.city})</span><span>{fee ? formatPrice(fee) : "Offerte"}</span></div>
+          <div className="flex justify-between border-t border-line pt-3.5 tabular-nums"><span>Total estimé</span><b className="text-lg font-normal">{formatPrice(total)}</b></div>
+          <p className="text-[11px] leading-relaxed text-muted">Le montant final est recalculé et validé par le serveur au moment de la commande.</p>
+        </aside>
+      </section>
+    </>
+  );
 }

@@ -3,13 +3,10 @@ from app.models.catalog import Category, Color, InventoryMovement, Product, Prod
 from app.models.client import CustomerAddress, CustomerFavorite, CustomerPasswordResetToken, CustomerUser
 from app.models.orders import Order, OrderItem, OrderStatusHistory
 from app.models.payments import PaymentTransaction, PaymentWebhookEvent
+from app.models.shipping import DeliveryZone
 
 __all__ = [
     "AdminUser",
-    "CustomerUser",
-    "CustomerAddress",
-    "CustomerFavorite",
-    "CustomerPasswordResetToken",
     "Category",
     "Color",
     "InventoryMovement",
@@ -17,9 +14,14 @@ __all__ = [
     "ProductImage",
     "ProductVariant",
     "Size",
+    "CustomerAddress",
+    "CustomerFavorite",
+    "CustomerPasswordResetToken",
+    "CustomerUser",
     "Order",
     "OrderItem",
     "OrderStatusHistory",
     "PaymentTransaction",
     "PaymentWebhookEvent",
+    "DeliveryZone",
 ]
