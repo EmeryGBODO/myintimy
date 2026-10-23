@@ -6,5 +6,7 @@ export default defineConfig({
   test: {
     environment: "jsdom",
     setupFiles: "./src/test/setup.js",
+    // Les parcours Playwright sont exécutés séparément par `npm run test:e2e`.
+    exclude: ["e2e/**", "node_modules/**", "dist/**"],
   },
 });

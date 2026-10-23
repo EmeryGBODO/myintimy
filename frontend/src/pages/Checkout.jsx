@@ -448,7 +448,7 @@ export default function Checkout() {
           <p className="min-h-[1.2em] font-display text-base italic text-accent" role="status">{paymentStage}</p>
           <p className="min-h-[1.2em] font-display text-base italic text-danger" role="alert">{error}</p>
           <button type="submit" className="btn w-full" disabled={submitting}>
-            {submitting ? (paymentStage || "Traitement…") : buttonLabel}
+            {submitting ? (paymentStage || "Enregistrement…") : buttonLabel}
           </button>
           <p className="mt-1 text-center text-[11.5px] leading-relaxed text-muted">
             En confirmant votre commande, vous acceptez nos{" "}
