@@ -1,7 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useShop } from "../context/shop-context.js";
-import { CATEGORIES, COLORS, FREE_SHIPPING, PRODUCTS, formatPrice, getProduct } from "../data/catalog.js";
+import { CATEGORIES, FREE_SHIPPING, PRODUCTS, formatPrice, getProduct as getLegacyProduct } from "../data/catalog.js";
+import { CatalogContext } from "../catalog/catalog-context.js";
+import { getProductColorMeta } from "../catalog/product-options.js";
+import { getCartItemUnitPrice } from "../domain/cart.js";
 import ProductImage from "./ProductImage.jsx";
 import { NAV } from "../data/navigation.js";
 import { ThemeButton } from "./Header.jsx";
@@ -24,6 +27,8 @@ export function Qty({ value, onMinus, onPlus, className = "" }) {
 /* ---------- Panier latéral ---------- */
 export function CartDrawer() {
   const { panel, closePanel, cart, subtotal, changeQty, removeItem } = useShop();
+  const catalog = useContext(CatalogContext);
+  const getProduct = catalog?.getProduct || getLegacyProduct;
   const open = panel === "cart";
   const left = FREE_SHIPPING - subtotal;
 
@@ -54,15 +59,17 @@ export function CartDrawer() {
             </div>
           ) : cart.map((i) => {
             const p = getProduct(i.id);
+            const color = getProductColorMeta(p, i.color);
+            const unitPrice = getCartItemUnitPrice(p, i);
             return (
               <div key={i.key} className="grid grid-cols-[84px_1fr] gap-4 border-b border-line py-[18px]">
                 <div className="aspect-[3/4] overflow-hidden"><ProductImage product={p} color={i.color} /></div>
                 <div>
-                  <h3 className="text-lg leading-tight">{p.name}</h3>
-                  <p className="mt-0.5 text-[12.5px] text-muted">{COLORS[i.color].n}{i.size ? ` · Taille ${i.size}` : ""}</p>
+                  <h3 className="text-lg leading-tight">{p?.name || "Article indisponible"}</h3>
+                  <p className="mt-0.5 text-[12.5px] text-muted">{color.name}{i.size ? ` · Taille ${i.size}` : ""}</p>
                   <div className="mt-3 flex items-center justify-between">
                     <Qty className="h-[34px]" value={i.qty} onMinus={() => changeQty(i.key, -1)} onPlus={() => changeQty(i.key, 1)} />
-                    <span className="text-[13.5px] tracking-wide tabular-nums">{formatPrice(p.price * i.qty)}</span>
+                    <span className="text-[13.5px] tracking-wide tabular-nums">{formatPrice(unitPrice * i.qty)}</span>
                   </div>
                   <button type="button" onClick={() => removeItem(i.key)} className="mt-2.5 text-[11.5px] text-muted underline underline-offset-[3px]">Retirer</button>
                 </div>
