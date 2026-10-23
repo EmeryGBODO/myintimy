@@ -14,6 +14,7 @@ import ProductImage from "../components/ProductImage.jsx";
 import Header from "../components/Header.jsx";
 import AccountLogin from "../pages/account/AccountLogin.jsx";
 import Product from "../pages/Product.jsx";
+import App from "../App.jsx";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -153,6 +154,19 @@ describe("Tâche 10 — Améliorer l’accessibilité de base", () => {
 
       // Le panier se referme (aria-hidden devient true)
       expect(drawer).toHaveAttribute("aria-hidden", "true");
+    });
+
+    it("garde le panier ouvert après un clic sur son bouton dans le header", () => {
+      vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+      render(
+        <TestWrapper>
+          <App />
+        </TestWrapper>,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: /^panier/i }));
+
+      expect(screen.getByRole("dialog", { name: /panier/i })).toHaveAttribute("aria-hidden", "false");
     });
   });
 

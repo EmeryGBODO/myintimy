@@ -64,6 +64,7 @@ export function ShopProvider({ children }) {
 
   /* Panneaux */
   const [panel, setPanel] = useState(null); // "cart" | "menu" | "search" | "sizes" | null
+  const closePanel = useCallback(() => setPanel(null), []);
   useEffect(() => {
     document.body.style.overflow = panel ? "hidden" : "";
     const onKey = (e) => e.key === "Escape" && setPanel(null);
@@ -114,9 +115,8 @@ export function ShopProvider({ children }) {
     isDark, toggleTheme,
     cart, cartCount, subtotal, addToCart, changeQty, removeItem, clearCart,
     favs, toggleFav, isFav: (id) => favs.some((itemId) => String(itemId) === String(id)),
-    panel, openPanel: setPanel, closePanel: () => setPanel(null),
+    panel, openPanel: setPanel, closePanel,
     toastMsg, toast, ageOk, confirmAge,
   };
   return <ShopContext.Provider value={value}>{children}</ShopContext.Provider>;
 }
-
