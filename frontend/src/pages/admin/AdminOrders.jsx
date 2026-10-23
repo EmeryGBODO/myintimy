@@ -52,6 +52,22 @@ export default function AdminOrders() {
     }
   }
 
+  async function markPaymentReceived(order) {
+    if (updatingId) return;
+    if (!window.confirm(`Confirmer la réception du paiement pour ${order.reference} ?`)) return;
+
+    setUpdatingId(order.id);
+    try {
+      const updated = await adminApi.markOrderPaymentReceived(order.id);
+      setItems((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setError(null);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
   return (
     <>
       <AdminTitle title="Commandes" subtitle="Suivez les commandes, leur préparation et l’évolution du stock réservé." />
@@ -116,6 +132,7 @@ export default function AdminOrders() {
                     const meta = orderStatus(order.status);
                     const nextStatus = (ORDER_TRANSITIONS[order.status] || []).find((value) => value !== "cancelled");
                     const nextMeta = nextStatus ? orderStatus(nextStatus) : null;
+                    const canConfirmPayment = order.payment_method === "cash_on_delivery" && order.status === "delivered" && order.payment_status !== "paid";
                     return (
                       <tr key={order.id} className="transition-colors hover:bg-surface/40">
                         <td className="p-4"><Link to={`/admin/orders/${order.id}`} className="lnk font-mono text-xs">{order.reference}</Link></td>
@@ -125,7 +142,16 @@ export default function AdminOrders() {
                         <td className="px-3 py-4">{order.items.reduce((sum, item) => sum + item.quantity, 0)}</td>
                         <td className="p-4 text-right tabular-nums">{formatXof(order.total_xof)}</td>
                         <td className="p-4 text-right">
-                          {nextStatus ? (
+                          {canConfirmPayment ? (
+                            <button
+                              type="button"
+                              disabled={updatingId === order.id}
+                              className={compactButtonClass}
+                              onClick={() => markPaymentReceived(order)}
+                            >
+                              {updatingId === order.id ? "Mise à jour…" : "Paiement reçu"}
+                            </button>
+                          ) : nextStatus ? (
                             <button
                               type="button"
                               disabled={updatingId === order.id}
